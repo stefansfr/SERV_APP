@@ -81,6 +81,18 @@
   }
   .stage-btn:hover{background:#2a3040;}
   .stage-btn.active{background:linear-gradient(90deg,#00b0ff,#00e5ff);color:#04121a;font-weight:700;border-color:transparent;}
+  .idx-wrap{margin-top:9px;}
+  .idx-wrap label{font-size:11px;color:var(--muted);display:block;margin-bottom:3px;}
+  .idx-row{display:flex;align-items:center;gap:6px;}
+  .idx-row input{
+    width:0;flex:1;min-width:0;background:#0b0d11;color:var(--text);
+    border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:12px;font-family:inherit;
+  }
+  .idx-row input::-webkit-outer-spin-button,
+  .idx-row input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  .idx-sep{color:var(--muted);font-size:12px;flex:none;}
+  .idx-out{flex:none;min-width:52px;text-align:right;font-weight:700;font-size:12.5px;color:var(--muted);}
+
   .obs-wrap{margin-top:8px;}
   .obs-wrap label{font-size:11px;color:var(--muted);display:block;margin-bottom:3px;}
   .obs-wrap textarea{
@@ -151,12 +163,16 @@
   }
   .sel-banner.show{display:block;}
   .locate-btn.picking{background:var(--accent);}
+  .hl-btn-row{margin-top:9px;}
+  .hl-btn-row label{font-size:11px;color:var(--muted);display:block;margin-bottom:3px;}
+  .hl-btns{display:flex;gap:5px;}
   .popup-box .hl-btn{
-    display:block;width:100%;margin-top:6px;padding:6px;border-radius:8px;
-    border:1px solid var(--border);background:var(--panel2);color:var(--text);
-    cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;
+    flex:1;min-width:0;padding:5px 4px;border-radius:8px;
+    border:1px solid var(--border);background:var(--panel2);color:var(--muted);
+    cursor:pointer;font-size:10.5px;font-weight:600;font-family:inherit;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
-  .popup-box .hl-btn:hover{background:#2a3040;}
+  .popup-box .hl-btn:hover{background:#2a3040;color:var(--text);}
 
   .leaflet-control-attribution{background:rgba(15,17,21,.7)!important;color:var(--muted)!important;}
   .leaflet-control-attribution a{color:#7fd3ff!important;}
@@ -459,33 +475,85 @@ function popupHtml(p){
     <div class="cur">Status curent: <b>${label}</b></div>
     <div class="hint">Bifele sunt independente — pot fi in orice ordine</div>
     <div class="stage-list">${rows}</div>
+    ${idxHtml(p)}
     <div class="obs-wrap">
       <label>Observatii</label>
-      <textarea id="obsTxt" placeholder="scrie o observatie…">${esc(p.obs || '')}</textarea>
-      <button class="obs-save" id="obsSave">💾 Salveaza observatia</button>
+      <textarea id="obsTxt" placeholder="scrie o observatie…">${esc(parseObs(p.obs).text)}</textarea>
+      <button class="obs-save" id="obsSave">💾 Salveaza index + observatie</button>
     </div>
     ${hlButtonsHtml(p)}
     <a class="nav-btn" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}" target="_blank">🗺 Navigheaza aici</a>
   </div>`;
 }
 
+// ── Index tambur (metri reali) ───────────────────────────────────────────
+// Nu avem coloane dedicate in Sheet, asa ca indexul se tine in campul de
+// observatii, pe prima pozitie, in forma "IDX 1250-1310 | restul textului".
+// Asa merge cu Apps Script-ul existent, fara coloane noi.
+const IDX_RE = /^\s*IDX\s*(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)\s*(?:\|\s*)?/i;
+
+function parseObs(obs){
+  const s = String(obs || '');
+  const m = s.match(IDX_RE);
+  if (!m) return { start:'', end:'', text:s };
+  return { start:m[1].replace(',','.'), end:m[2].replace(',','.'), text:s.slice(m[0].length) };
+}
+function buildObs(start, end, text){
+  const a = String(start).trim(), b = String(end).trim();
+  const t = String(text || '').trim();
+  if (a === '' || b === '') return t;
+  return `IDX ${a}-${b}${t ? ' | ' + t : ''}`;
+}
+// Metri reali consumati = final - inceput. null daca nu e completat corect.
+function realiOf(p){
+  const {start, end} = parseObs(p.obs);
+  if (start === '' || end === '') return null;
+  const d = parseFloat(end) - parseFloat(start);
+  return isNaN(d) ? null : d;
+}
+
 function cabluHtml(p){
   const m = CABLU_M[p.name];
-  if (m === undefined) return '';
-  if (m === 0) return `<div class="cur">Cablu de tras: <b style="color:#00e676">nu e cazul (OK)</b></div>`;
-  const col = m > PRAG_M ? '#ff1744' : '#ffea00';
-  return `<div class="cur">Cablu de tras: <b style="color:${col}">${m} m</b></div>`;
+  const real = realiOf(p);
+  let est = '';
+  if (m === undefined) est = '';
+  else if (m === 0) est = `<div class="cur">Cablu de tras: <b style="color:#00e676">nu e cazul (OK)</b></div>`;
+  else {
+    const col = m > PRAG_M ? '#ff1744' : '#ffea00';
+    est = `<div class="cur">Estimat pe teren: <b style="color:${col}">${m} m</b></div>`;
+  }
+  if (real === null) return est;
+  // Cu cat difera realul fata de estimarea din carnet
+  const dif = (m === undefined || m === 0) ? null : real - m;
+  const semn = dif === null ? '' :
+    (dif === 0 ? ' (exact cat estimat)' :
+     ` (${dif > 0 ? '+' : ''}${Math.round(dif*10)/10} m fata de estimat)`);
+  return est + `<div class="cur">Consumat real: <b style="color:var(--accent)">${Math.round(real*10)/10} m</b>${semn}</div>`;
+}
+
+function idxHtml(p){
+  const {start, end} = parseObs(p.obs);
+  return `<div class="idx-wrap">
+    <label>Index tambur (metri reali)</label>
+    <div class="idx-row">
+      <input id="idxStart" type="number" inputmode="decimal" placeholder="inceput" value="${esc(start)}">
+      <span class="idx-sep">→</span>
+      <input id="idxEnd" type="number" inputmode="decimal" placeholder="final" value="${esc(end)}">
+      <span class="idx-out" id="idxOut">–</span>
+    </div>
+  </div>`;
 }
 
 function hlButtonsHtml(p){
   const cur = HL[p.name] || null;
-  return HIGHLIGHT_GROUPS.map(g => {
+  const btns = HIGHLIGHT_GROUPS.map(g => {
     const on = cur === g.id;
-    return `<button class="hl-btn" data-gid="${g.id}"
-      style="${on ? `border-color:${g.color};color:${g.color}` : ''}">
-      ${on ? '✦ Scoate din' : '○ Adauga la'} „${esc(g.label)}”
+    return `<button class="hl-btn ${on ? 'on' : ''}" data-gid="${g.id}" title="${esc(g.label)}"
+      style="${on ? `border-color:${g.color};color:${g.color};background:${g.color}22` : ''}">
+      ${on ? '✦' : '○'} ${esc(g.label)}
     </button>`;
   }).join('');
+  return `<div class="hl-btn-row"><label>Incercuire</label><div class="hl-btns">${btns}</div></div>`;
 }
 
 function wirePopup(p){
@@ -494,6 +562,19 @@ function wirePopup(p){
   });
   const save = document.getElementById('obsSave');
   if (save) save.onclick = () => saveObs(p);
+
+  // Diferenta se calculeaza in timp ce scrii, inainte de salvare
+  const s = document.getElementById('idxStart'), e = document.getElementById('idxEnd');
+  const out = document.getElementById('idxOut');
+  const calc = () => {
+    if (!out) return;
+    const a = parseFloat(s.value), b = parseFloat(e.value);
+    if (isNaN(a) || isNaN(b)){ out.textContent = '–'; out.style.color = ''; return; }
+    const d = Math.round((b - a) * 10) / 10;
+    out.textContent = d + ' m';
+    out.style.color = d < 0 ? '#ff1744' : 'var(--accent)';
+  };
+  if (s && e){ s.oninput = calc; e.oninput = calc; calc(); }
   document.querySelectorAll('.hl-btn').forEach(btn => {
     btn.onclick = () => setHL(p.name, btn.dataset.gid);
   });
@@ -522,8 +603,19 @@ async function saveObs(p){
   if (READONLY){ toast('🔒 Mod citire — harta e legata inca de Sheet-ul original', 4000); return; }
   const txt = document.getElementById('obsTxt');
   if (!txt) return;
-  const val = txt.value;
+  const s = document.getElementById('idxStart'), e = document.getElementById('idxEnd');
+  const a = s ? s.value.trim() : '', b = e ? e.value.trim() : '';
+  if ((a === '') !== (b === '')){
+    toast('⚠ Completeaza si indexul de inceput, si pe cel final', 4000);
+    return;
+  }
+  if (a !== '' && parseFloat(b) < parseFloat(a)){
+    toast('⚠ Indexul final e mai mic decat cel de inceput', 4000);
+    return;
+  }
+  const val = buildObs(a, b, txt.value);
   p.obs = val;
+  refreshMarker(p, false);
   toast('Se salveaza observatia…');
   try{
     const res = await fetch(`${SCRIPT_URL}?action=note&name=${encodeURIComponent(p.name)}&value=${encodeURIComponent(val)}`);
@@ -712,12 +804,24 @@ document.getElementById('hlCopy').onclick = () => {
     const suma = names.reduce((s,n) => s + (CABLU_M[n] || 0), 0);
     const cap = g.id === 'ok'
       ? `${g.label} (${names.length} buc.)`
-      : `${g.label} — ${names.length} buc., ${suma} m`;
-    const linii = names.map(n => `  ${n}${CABLU_M[n] ? ' — ' + CABLU_M[n] + ' m' : ''}`).join('\n');
+      : `${g.label} — ${names.length} buc., ${suma} m estimat`;
+    const linii = names.map(n => {
+      const est = CABLU_M[n] ? ' — ' + CABLU_M[n] + ' m' : '';
+      const r = POINTS[n] ? realiOf(POINTS[n]) : null;
+      return `  ${n}${est}${r !== null ? ` (real ${Math.round(r*10)/10} m)` : ''}`;
+    }).join('\n');
     return cap + '\n' + linii;
   }).join('\n\n');
   const total = Object.keys(HL).reduce((s,n) => s + (CABLU_M[n] || 0), 0);
-  navigator.clipboard.writeText(`Cablu de tras — Radovanu ITS\n\n${txt}\n\nTOTAL: ${total} m`)
+  const totalReal = Object.keys(HL).reduce((s,n) => {
+    const r = POINTS[n] ? realiOf(POINTS[n]) : null;
+    return s + (r === null ? 0 : r);
+  }, 0);
+  const cuIndex = Object.keys(HL).filter(n => POINTS[n] && realiOf(POINTS[n]) !== null).length;
+  const linieReal = cuIndex
+    ? `\nDIN INDEX (${cuIndex} din ${Object.keys(HL).length} elemente): ${Math.round(totalReal*10)/10} m`
+    : '';
+  navigator.clipboard.writeText(`Cablu de tras — Radovanu ITS\n\n${txt}\n\nTOTAL ESTIMAT: ${total} m${linieReal}`)
     .then(() => toast('✓ Raport copiat in clipboard', 3500))
     .catch(() => toast('⚠ Clipboard blocat de browser', 4000));
 };
