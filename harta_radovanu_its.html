@@ -113,6 +113,51 @@
     #topbar h1{ font-size:15px; }
   }
 
+  /* ── Evidentiere markere ── */
+  /* Halo-ul e desenat IN interiorul divIcon-ului, deci ramane constant in pixeli
+     la orice zoom (spre deosebire de L.circle, care e ancorat in metri pe teren). */
+  .hl-wrap{position:relative;width:100%;height:100%;}
+  .hl-wrap svg{filter:drop-shadow(0 0 5px var(--hl)) drop-shadow(0 0 2px var(--hl));}
+  .hl-ring{
+    position:absolute;left:50%;bottom:0;transform:translate(-50%,38%);
+    width:36px;height:17px;border-radius:50%;
+    border:2.5px solid var(--hl);box-shadow:0 0 12px var(--hl),inset 0 0 8px var(--hl);
+    pointer-events:none;
+  }
+  .hl-ring::after{
+    content:'';position:absolute;inset:-6px;border-radius:50%;
+    border:1.5px solid var(--hl);opacity:.55;
+    animation:hlpulse 2s ease-out infinite;
+  }
+  @keyframes hlpulse{0%{transform:scale(.75);opacity:.7;}100%{transform:scale(1.35);opacity:0;}}
+
+  #hlPanel{margin-top:4px;}
+  .hl-row{display:flex;align-items:center;gap:8px;margin:5px 0;cursor:pointer;user-select:none;}
+  .hl-row .hl-swatch{width:13px;height:13px;border-radius:50%;flex:none;border:2px solid currentColor;}
+  .hl-row .hl-name{flex:1;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .hl-row.on .hl-name{color:var(--text);font-weight:600;}
+  .hl-row.picking .hl-name{color:var(--accent);}
+  .hl-row .hl-n{color:var(--text);font-weight:600;font-size:11.5px;}
+  .hl-tools{display:flex;gap:6px;margin-top:8px;}
+  .hl-tools button{
+    flex:1;padding:5px;border-radius:7px;border:1px solid var(--border);
+    background:var(--panel2);color:var(--text);cursor:pointer;font-size:11px;font-family:inherit;
+  }
+  .hl-tools button:hover{background:#2a3040;}
+  .sel-banner{
+    position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:1500;
+    background:var(--accent);color:#04121a;font-weight:700;font-size:12.5px;
+    padding:7px 14px;border-radius:20px;box-shadow:0 6px 18px rgba(0,0,0,.5);display:none;
+  }
+  .sel-banner.show{display:block;}
+  .locate-btn.picking{background:var(--accent);}
+  .popup-box .hl-btn{
+    display:block;width:100%;margin-top:6px;padding:6px;border-radius:8px;
+    border:1px solid var(--border);background:var(--panel2);color:var(--text);
+    cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;
+  }
+  .popup-box .hl-btn:hover{background:#2a3040;}
+
   .leaflet-control-attribution{background:rgba(15,17,21,.7)!important;color:var(--muted)!important;}
   .leaflet-control-attribution a{color:#7fd3ff!important;}
   .leaflet-control-zoom a{background:var(--panel)!important;color:var(--text)!important;border-color:var(--border)!important;}
@@ -147,9 +192,18 @@
     <div class="leg-row"><div class="leg-dot" style="background:#00e676"></div><div class="leg-label">Finalizat</div><div class="leg-count" id="c4">0</div></div>
     <div class="progress-wrap"><div class="progress-bar" id="pbar" style="width:0%"></div></div>
     <div class="progress-txt" id="ptxt">–</div>
+    <div class="leg-sep"></div>
+    <div id="hlPanel">
+      <div id="hlRows"></div>
+      <div class="hl-tools">
+        <button id="hlCopy" title="Copiaza lista ca sa o pui in cod">📋 Copiaza</button>
+        <button id="hlClear" title="Sterge toate evidentierile">✕ Goleste</button>
+      </div>
+    </div>
   </div>
 </div>
 
+<div class="sel-banner" id="selBanner"></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -160,6 +214,49 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby1UV_oN3GqR30sDbbli
 
 const COLORS = { none:'#9e9e9e', low:'#ff6d00', mid:'#ffd600', high:'#00b0ff', done:'#00e676' };
 const CAT_LABELS = { CT:'Cutii de transmisiuni', SIC:'Statii autobuz (SIC)', PIV:'Panouri PIV', CV:'Camere bullet', PTZ:'Camere PTZ', LPR:'Camere LPR' };
+
+// ── Evidentieri (grupuri de markere incercuite) ─────────────────────────────
+// Pui numele exact din Sheet in `names` ca sa porneasca deja evidentiat.
+// Alternativ le alegi cu mouse-ul din harta (butonul ✦) si raman salvate local.
+const HIGHLIGHT_GROUPS = [
+  { id:'a', label:'De verificat',    color:'#ff1744', names:[] },
+  { id:'b', label:'Prioritate',      color:'#ffea00', names:[] },
+  { id:'c', label:'Confirmat teren', color:'#00e676', names:[] }
+];
+const HL_STORE = 'radovanu_its_highlights';
+
+// name -> group id. Un marker apartine unui singur grup (ultimul castiga).
+let HL = {};
+let hlVisible = {};                       // group id -> bool (afisat sau nu)
+let pickGroup = null;                     // grupul in care se adauga la click pe marker
+
+function loadHL(){
+  HIGHLIGHT_GROUPS.forEach(g => {
+    hlVisible[g.id] = true;
+    g.names.forEach(n => HL[n] = g.id);
+  });
+  try{
+    const raw = localStorage.getItem(HL_STORE);
+    if (raw) HL = JSON.parse(raw);         // ce ai ales in browser bate lista din cod
+  }catch(e){ console.warn('Nu s-au putut citi evidentierile salvate', e); }
+}
+function saveHL(){
+  try{ localStorage.setItem(HL_STORE, JSON.stringify(HL)); }
+  catch(e){ toast('⚠ Nu s-au putut salva evidentierile local', 4000); }
+}
+function hlOf(name){
+  const gid = HL[name];
+  if (!gid || !hlVisible[gid]) return null;
+  return HIGHLIGHT_GROUPS.find(g => g.id === gid) || null;
+}
+function setHL(name, gid){
+  if (gid === null || HL[name] === gid) delete HL[name];
+  else HL[name] = gid;
+  saveHL();
+  const p = POINTS[name];
+  if (p) refreshMarker(p, !!document.querySelector('.leaflet-popup'));
+  updateHlPanel();
+}
 
 // Starea aplicatiei — totul vine LIVE din Sheet (nume, coordonate, bife, observatii)
 let FIELDS = [];        // [{col, label}] — coloanele de bife, in ordinea din sheet
@@ -301,8 +398,13 @@ function makeIcon(p){
   const color = colorOf(p);
   const sizes = { CT:[30,34], SIC:[32,36], PIV:[30,38], CV:[32,36], PTZ:[30,36], LPR:[32,36] };
   const [iw, ih] = sizes[p.cat];
+  // Culoarea markerului ramane cea de progres; evidentierea doar il incercuieste.
+  const g = hlOf(p.name);
+  const html = g
+    ? `<div class="hl-wrap" style="--hl:${g.color}"><div class="hl-ring"></div>${svgFor(p, color)}</div>`
+    : svgFor(p, color);
   return L.divIcon({
-    className:'', html: svgFor(p, color),
+    className:'', html,
     iconSize:[iw, ih], iconAnchor:[iw/2, ih-2], popupAnchor:[0, -(ih-4)]
   });
 }
@@ -330,8 +432,20 @@ function popupHtml(p){
       <textarea id="obsTxt" placeholder="scrie o observatie…">${esc(p.obs || '')}</textarea>
       <button class="obs-save" id="obsSave">💾 Salveaza observatia</button>
     </div>
+    ${hlButtonsHtml(p)}
     <a class="nav-btn" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}" target="_blank">🗺 Navigheaza aici</a>
   </div>`;
+}
+
+function hlButtonsHtml(p){
+  const cur = HL[p.name] || null;
+  return HIGHLIGHT_GROUPS.map(g => {
+    const on = cur === g.id;
+    return `<button class="hl-btn" data-gid="${g.id}"
+      style="${on ? `border-color:${g.color};color:${g.color}` : ''}">
+      ${on ? '✦ Scoate din' : '○ Adauga la'} „${esc(g.label)}”
+    </button>`;
+  }).join('');
 }
 
 function wirePopup(p){
@@ -340,6 +454,9 @@ function wirePopup(p){
   });
   const save = document.getElementById('obsSave');
   if (save) save.onclick = () => saveObs(p);
+  document.querySelectorAll('.hl-btn').forEach(btn => {
+    btn.onclick = () => setHL(p.name, btn.dataset.gid);
+  });
 }
 
 // ── Scriere in Sheet ──────────────────────────────────────────────────────
@@ -407,6 +524,8 @@ async function loadData(){
           .addTo(catGroups[p.cat])
           .bindPopup(popupHtml(p), {closeButton:true, maxWidth:290});
         m.on('popupopen', () => wirePopup(p));
+        m.on('click', () => { if (pickGroup) setHL(p.name, pickGroup); });
+        if (pickGroup) m.unbindPopup();   // marker aparut in timpul selectiei
         markers[p.name] = m;
       } else if (!popupOpen){
         p.lat = lat; p.lon = lon; p.obs = row.obs; p.vals = row.vals;
@@ -456,6 +575,102 @@ function updateLegend(){
   document.getElementById('subTxt').textContent =
     `${cats.CT.total} CT · ${cats.SIC.total} statii · ${cats.PIV.total} PIV · ${cats.CV.total} bullet · ${cats.PTZ.total} PTZ · ${cats.LPR.total} LPR — sincronizare live cu Google Sheets`;
 }
+
+// ── Panou evidentieri + mod de selectare pe harta ────────────────────────
+function refreshAllIcons(){
+  Object.values(POINTS).forEach(p => {
+    const m = markers[p.name];
+    if (m) m.setIcon(makeIcon(p));
+  });
+}
+
+function updateHlPanel(){
+  const counts = {};
+  HIGHLIGHT_GROUPS.forEach(g => counts[g.id] = 0);
+  Object.values(HL).forEach(gid => { if (gid in counts) counts[gid]++; });
+
+  document.getElementById('hlRows').innerHTML = HIGHLIGHT_GROUPS.map(g => {
+    const vis = hlVisible[g.id], picking = pickGroup === g.id;
+    return `<div class="hl-row ${counts[g.id] ? 'on' : ''} ${picking ? 'picking' : ''}" data-gid="${g.id}">
+      <div class="hl-swatch" data-act="vis" title="Arata / ascunde"
+           style="color:${g.color};background:${vis ? g.color : 'transparent'}"></div>
+      <div class="hl-name" data-act="pick" title="Alege markere pe harta">${esc(g.label)}</div>
+      <div class="hl-n">${counts[g.id]}</div>
+    </div>`;
+  }).join('');
+
+  document.querySelectorAll('.hl-row').forEach(row => {
+    const gid = row.dataset.gid;
+    row.querySelector('[data-act="vis"]').onclick = e => {
+      e.stopPropagation();
+      hlVisible[gid] = !hlVisible[gid];
+      refreshAllIcons(); updateHlPanel();
+    };
+    row.querySelector('[data-act="pick"]').onclick = e => {
+      e.stopPropagation();
+      pickGroup === gid ? stopPick() : startPick(gid);
+    };
+  });
+}
+
+function startPick(gid){
+  pickGroup = gid;
+  const g = HIGHLIGHT_GROUPS.find(x => x.id === gid);
+  // Scoatem popup-urile cat timp alegem, ca un click sa insemne doar "incercuieste".
+  Object.values(markers).forEach(m => { m.closePopup(); m.unbindPopup(); });
+  const b = document.getElementById('selBanner');
+  b.textContent = `✦ Alege markere pentru „${g.label}” — click pe harta, ESC pentru gata`;
+  b.style.background = g.color;
+  b.classList.add('show');
+  document.getElementById('pickBtn').classList.add('picking');
+  updateHlPanel();
+}
+
+function stopPick(){
+  pickGroup = null;
+  Object.values(POINTS).forEach(p => {
+    const m = markers[p.name];
+    if (m && !m.getPopup()) {
+      m.bindPopup(popupHtml(p), {closeButton:true, maxWidth:290});
+      m.on('popupopen', () => wirePopup(p));
+    }
+  });
+  document.getElementById('selBanner').classList.remove('show');
+  document.getElementById('pickBtn').classList.remove('picking');
+  updateHlPanel();
+}
+
+const pickCtrl = L.control({position:'topleft'});
+pickCtrl.onAdd = function(){
+  const btn = L.DomUtil.create('div','locate-btn');
+  btn.id = 'pickBtn'; btn.title = 'Evidentiere markere';
+  btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eef1f6"
+    stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7"/>
+    <circle cx="12" cy="12" r="2.5" fill="#eef1f6"/></svg>`;
+  L.DomEvent.disableClickPropagation(btn);
+  L.DomEvent.on(btn, 'click', () => {
+    pickGroup ? stopPick() : startPick(HIGHLIGHT_GROUPS[0].id);
+  });
+  return btn;
+};
+pickCtrl.addTo(map);
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && pickGroup) stopPick(); });
+
+document.getElementById('hlCopy').onclick = () => {
+  const txt = HIGHLIGHT_GROUPS.map(g => {
+    const names = Object.keys(HL).filter(n => HL[n] === g.id).sort();
+    return `{ id:'${g.id}', label:'${g.label}', color:'${g.color}', names:[${names.map(n => `'${n}'`).join(', ')}] }`;
+  }).join(',\n  ');
+  navigator.clipboard.writeText(`const HIGHLIGHT_GROUPS = [\n  ${txt}\n];`)
+    .then(() => toast('✓ Lista copiata — o poti lipi peste HIGHLIGHT_GROUPS in cod', 4000))
+    .catch(() => toast('⚠ Clipboard blocat de browser', 4000));
+};
+
+document.getElementById('hlClear').onclick = () => {
+  HL = {}; saveHL(); refreshAllIcons(); updateHlPanel();
+  toast('Evidentieri sterse');
+};
 
 // ── Collapse/expand legenda ──────────────────────────────────────────────
 const legendEl = document.getElementById('legend');
@@ -535,6 +750,8 @@ function toggleGeo() {
 }
 
 // ── Start ────────────────────────────────────────────────────────────────
+loadHL();
+updateHlPanel();
 updateLegend();
 loadData();
 setInterval(loadData, 60000);
