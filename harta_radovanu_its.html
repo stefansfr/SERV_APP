@@ -196,8 +196,8 @@
     <div id="hlPanel">
       <div id="hlRows"></div>
       <div class="hl-tools">
-        <button id="hlCopy" title="Copiaza lista ca sa o pui in cod">📋 Copiaza</button>
-        <button id="hlClear" title="Sterge toate evidentierile">✕ Goleste</button>
+        <button id="hlCopy" title="Copiaza raportul cu metrii">📋 Raport</button>
+        <button id="hlClear" title="Revino la metrajul din teren">↺ Reset</button>
       </div>
     </div>
   </div>
@@ -210,25 +210,50 @@
 // ── Config ──────────────────────────────────────────────────────────────────
 // Daca actualizezi codul in ACELASI proiect Apps Script si redeployezi aceeasi
 // implementare (Manage deployments -> Edit -> New version), URL-ul ramane valabil.
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby1UV_oN3GqR30sDbbli397KIQhA1N7SKUQd8EgqpOr5-ASTA-LhUZBiYpZqjes40lgHA/exec';
+// Deployment propriu, legat de "Radovanu ITS — copie Stefan" din Drive-ul tau.
+// Verificat: scrierea ajunge in copie, Sheet-ul original ramane neatins.
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwKxnzJa-u_J08yMZUa3JukFTXve25JAhleOcx11ccKnxxk83-4-rUk3ZezZgBu9gcQxg/exec';
 
-// ATENTIE: URL-ul de mai sus e inca al Sheet-ului ORIGINAL (nu al copiei tale).
-// Cat timp e asa, scrierea e blocata — altfel bifele de aici i-ar modifica
-// datele reale. Dupa ce pui URL-ul propriului deployment, treci READONLY pe false.
-const READONLY = true;
+// Pune pe true daca vrei harta doar de citit (bifele si observatiile blocate).
+const READONLY = false;
 
 const COLORS = { none:'#9e9e9e', low:'#ff6d00', mid:'#ffd600', high:'#00b0ff', done:'#00e676' };
 const CAT_LABELS = { CT:'Cutii de transmisiuni', SIC:'Statii autobuz (SIC)', PIV:'Panouri PIV', CV:'Camere bullet', PTZ:'Camere PTZ', LPR:'Camere LPR' };
 
+// ── Cablu de tras (metri liniari, din notitele de teren) ────────────────────
+// Sursa unica de adevar: culorile de mai jos se CALCULEAZA din metrajul asta,
+// nu se tin liste separate. Schimbi un metraj sau pragul -> harta se aliniaza.
+// 0 = notat "OK" pe hartie, adica nu mai e cablu de tras.
+const PRAG_M = 30;   // peste = rosu, pana la (inclusiv) = galben
+const CABLU_M = {
+  // LPR
+  LPR001:5, LPR002:5, LPR003:130, LPR004:5, LPR005:5, LPR006:5, LPR007:5,
+  // CV
+  CV001:25, CV002:70, CV003:60, CV004:60, CV005:20, CV006:30, CV007:25,
+  CV008:60, CV009:30, CV010:0,  CV011:60, CV012:0,  CV013:0,  CV014:40,
+  CV015:0,  CV016:60, CV017:0,  CV018:90, CV019:30, CV020:60, CV021:10,
+  CV022:20, CV023:5,
+  // PTZ
+  PTZ001:60, PTZ002:5, PTZ003:0, PTZ004:0, PTZ005:140, PTZ006:0, PTZ007:0
+};
+
 // ── Evidentieri (grupuri de markere incercuite) ─────────────────────────────
-// Pui numele exact din Sheet in `names` ca sa porneasca deja evidentiat.
-// Alternativ le alegi cu mouse-ul din harta (butonul ✦) si raman salvate local.
 const HIGHLIGHT_GROUPS = [
-  { id:'a', label:'De verificat',    color:'#ff1744', names:[] },
-  { id:'b', label:'Prioritate',      color:'#ffea00', names:[] },
-  { id:'c', label:'Confirmat teren', color:'#00e676', names:[] }
+  { id:'rosu',   label:`Peste ${PRAG_M} m`,   color:'#ff1744' },
+  { id:'galben', label:`Pana la ${PRAG_M} m`, color:'#ffea00' },
+  { id:'ok',     label:'OK (fara cablu)',     color:'#00e676' }
 ];
 const HL_STORE = 'radovanu_its_highlights';
+
+// Din metraj -> grup. Ce nu e in CABLU_M (CT, SIC, PIV) ramane neevidentiat.
+function derivedHL(){
+  const out = {};
+  Object.keys(CABLU_M).forEach(n => {
+    const m = CABLU_M[n];
+    out[n] = m > PRAG_M ? 'rosu' : (m > 0 ? 'galben' : 'ok');
+  });
+  return out;
+}
 
 // name -> group id. Un marker apartine unui singur grup (ultimul castiga).
 let HL = {};
@@ -236,13 +261,14 @@ let hlVisible = {};                       // group id -> bool (afisat sau nu)
 let pickGroup = null;                     // grupul in care se adauga la click pe marker
 
 function loadHL(){
-  HIGHLIGHT_GROUPS.forEach(g => {
-    hlVisible[g.id] = true;
-    g.names.forEach(n => HL[n] = g.id);
-  });
+  HIGHLIGHT_GROUPS.forEach(g => hlVisible[g.id] = true);
+  HL = derivedHL();
   try{
+    // Ce ai modificat manual bate metrajul din cod — dar doar daca exista ceva.
+    // Un obiect gol inseamna "fara suprascriere", nu "fara evidentieri".
     const raw = localStorage.getItem(HL_STORE);
-    if (raw) HL = JSON.parse(raw);         // ce ai ales in browser bate lista din cod
+    const saved = raw ? JSON.parse(raw) : null;
+    if (saved && Object.keys(saved).length) HL = saved;
   }catch(e){ console.warn('Nu s-au putut citi evidentierile salvate', e); }
 }
 function saveHL(){
@@ -429,6 +455,7 @@ function popupHtml(p){
   return `<div class="popup-box">
     <h4>${esc(p.name)}</h4>
     <span class="tag">${CAT_LABELS[p.cat]}</span>
+    ${cabluHtml(p)}
     <div class="cur">Status curent: <b>${label}</b></div>
     <div class="hint">Bifele sunt independente — pot fi in orice ordine</div>
     <div class="stage-list">${rows}</div>
@@ -440,6 +467,14 @@ function popupHtml(p){
     ${hlButtonsHtml(p)}
     <a class="nav-btn" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}" target="_blank">🗺 Navigheaza aici</a>
   </div>`;
+}
+
+function cabluHtml(p){
+  const m = CABLU_M[p.name];
+  if (m === undefined) return '';
+  if (m === 0) return `<div class="cur">Cablu de tras: <b style="color:#00e676">nu e cazul (OK)</b></div>`;
+  const col = m > PRAG_M ? '#ff1744' : '#ffea00';
+  return `<div class="cur">Cablu de tras: <b style="color:${col}">${m} m</b></div>`;
 }
 
 function hlButtonsHtml(p){
@@ -592,17 +627,23 @@ function refreshAllIcons(){
 }
 
 function updateHlPanel(){
-  const counts = {};
-  HIGHLIGHT_GROUPS.forEach(g => counts[g.id] = 0);
-  Object.values(HL).forEach(gid => { if (gid in counts) counts[gid]++; });
+  const counts = {}, metri = {};
+  HIGHLIGHT_GROUPS.forEach(g => { counts[g.id] = 0; metri[g.id] = 0; });
+  Object.keys(HL).forEach(n => {
+    const gid = HL[n];
+    if (!(gid in counts)) return;
+    counts[gid]++;
+    metri[gid] += CABLU_M[n] || 0;
+  });
 
   document.getElementById('hlRows').innerHTML = HIGHLIGHT_GROUPS.map(g => {
     const vis = hlVisible[g.id], picking = pickGroup === g.id;
+    const val = metri[g.id] ? `${counts[g.id]} · ${metri[g.id]} m` : `${counts[g.id]}`;
     return `<div class="hl-row ${counts[g.id] ? 'on' : ''} ${picking ? 'picking' : ''}" data-gid="${g.id}">
       <div class="hl-swatch" data-act="vis" title="Arata / ascunde"
            style="color:${g.color};background:${vis ? g.color : 'transparent'}"></div>
       <div class="hl-name" data-act="pick" title="Alege markere pe harta">${esc(g.label)}</div>
-      <div class="hl-n">${counts[g.id]}</div>
+      <div class="hl-n">${val}</div>
     </div>`;
   }).join('');
 
@@ -664,19 +705,28 @@ pickCtrl.addTo(map);
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && pickGroup) stopPick(); });
 
+// Raport text, gata de trimis pe WhatsApp / pus in deviz.
 document.getElementById('hlCopy').onclick = () => {
   const txt = HIGHLIGHT_GROUPS.map(g => {
     const names = Object.keys(HL).filter(n => HL[n] === g.id).sort();
-    return `{ id:'${g.id}', label:'${g.label}', color:'${g.color}', names:[${names.map(n => `'${n}'`).join(', ')}] }`;
-  }).join(',\n  ');
-  navigator.clipboard.writeText(`const HIGHLIGHT_GROUPS = [\n  ${txt}\n];`)
-    .then(() => toast('✓ Lista copiata — o poti lipi peste HIGHLIGHT_GROUPS in cod', 4000))
+    const suma = names.reduce((s,n) => s + (CABLU_M[n] || 0), 0);
+    const cap = g.id === 'ok'
+      ? `${g.label} (${names.length} buc.)`
+      : `${g.label} — ${names.length} buc., ${suma} m`;
+    const linii = names.map(n => `  ${n}${CABLU_M[n] ? ' — ' + CABLU_M[n] + ' m' : ''}`).join('\n');
+    return cap + '\n' + linii;
+  }).join('\n\n');
+  const total = Object.keys(HL).reduce((s,n) => s + (CABLU_M[n] || 0), 0);
+  navigator.clipboard.writeText(`Cablu de tras — Radovanu ITS\n\n${txt}\n\nTOTAL: ${total} m`)
+    .then(() => toast('✓ Raport copiat in clipboard', 3500))
     .catch(() => toast('⚠ Clipboard blocat de browser', 4000));
 };
 
+// Revine la ce zic notitele de teren, stergand modificarile facute din harta.
 document.getElementById('hlClear').onclick = () => {
-  HL = {}; saveHL(); refreshAllIcons(); updateHlPanel();
-  toast('Evidentieri sterse');
+  try{ localStorage.removeItem(HL_STORE); }catch(e){}
+  HL = derivedHL(); refreshAllIcons(); updateHlPanel();
+  toast('Revenit la metrajul din teren');
 };
 
 // ── Collapse/expand legenda ──────────────────────────────────────────────
