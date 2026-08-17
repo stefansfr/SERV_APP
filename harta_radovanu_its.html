@@ -212,6 +212,11 @@
 // implementare (Manage deployments -> Edit -> New version), URL-ul ramane valabil.
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby1UV_oN3GqR30sDbbli397KIQhA1N7SKUQd8EgqpOr5-ASTA-LhUZBiYpZqjes40lgHA/exec';
 
+// ATENTIE: URL-ul de mai sus e inca al Sheet-ului ORIGINAL (nu al copiei tale).
+// Cat timp e asa, scrierea e blocata — altfel bifele de aici i-ar modifica
+// datele reale. Dupa ce pui URL-ul propriului deployment, treci READONLY pe false.
+const READONLY = true;
+
 const COLORS = { none:'#9e9e9e', low:'#ff6d00', mid:'#ffd600', high:'#00b0ff', done:'#00e676' };
 const CAT_LABELS = { CT:'Cutii de transmisiuni', SIC:'Statii autobuz (SIC)', PIV:'Panouri PIV', CV:'Camere bullet', PTZ:'Camere PTZ', LPR:'Camere LPR' };
 
@@ -461,6 +466,7 @@ function wirePopup(p){
 
 // ── Scriere in Sheet ──────────────────────────────────────────────────────
 async function toggleFlag(p, idx){
+  if (READONLY){ toast('🔒 Mod citire — harta e legata inca de Sheet-ul original', 4000); return; }
   const f = FIELDS[idx];
   const newVal = p.vals[idx] !== true;
   p.vals[idx] = newVal;
@@ -478,6 +484,7 @@ async function toggleFlag(p, idx){
 }
 
 async function saveObs(p){
+  if (READONLY){ toast('🔒 Mod citire — harta e legata inca de Sheet-ul original', 4000); return; }
   const txt = document.getElementById('obsTxt');
   if (!txt) return;
   const val = txt.value;
