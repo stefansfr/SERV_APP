@@ -209,12 +209,14 @@
     <div class="leg-sep"></div>
     <div class="kpi"><span>Panouri amplasate</span><b id="kPan">0</b></div>
     <div class="kpi"><span>Putere instalata</span><b class="hi" id="kKw">0,00 kW</b></div>
-    <div class="kpi"><span>Productie estimata</span><b id="kProd">0 kWh/an</b></div>
-    <div class="leg-sep" style="margin:8px 0"></div>
-    <div class="kpi"><span>Consum anual unde instalez</span><b class="hi" id="kInst">0 kWh/an</b></div>
-    <div class="kpi"><span>Consum total UAT</span><b id="kUat">0 kWh/an</b></div>
+    <div class="kpi"><span>Tinta</span><b id="kTinta">–</b></div>
     <div class="progress-wrap"><div class="progress-bar" id="pbar"></div></div>
     <div class="progress-txt" id="ptxt">–</div>
+    <div class="leg-sep" style="margin:9px 0"></div>
+    <div class="kpi"><span>Productie estimata</span><b id="kProd">0 kWh/an</b></div>
+    <div class="kpi"><span>Consum total UAT</span><b id="kUat">0 kWh/an</b></div>
+    <div class="kpi"><span>Consum anual unde instalez</span><b id="kInst">0 kWh/an</b></div>
+    <div class="progress-txt" id="ptxt2">–</div>
     <div class="leg-tools">
       <button id="btnExport" title="Copiaza panourile si comentariile ca JSON">📋 Export</button>
       <button id="btnReset" title="Sterge modificarile locale si revino la datele din fisier">↺ Reset</button>
@@ -234,6 +236,10 @@ const PUTERE_PANOU_W = 500;      // W/panou — se schimba aici, o singura data
 // PREZUMTIE, nu data de proiect: productia specifica folosita la estimare.
 // Se inlocuieste cu PVGIS pe fiecare amplasament inainte de orice document.
 const PRODUCTIE_SPECIFICA = 1250;   // kWh/kWp/an
+
+// Tinta de putere instalata pentru toata comuna, stabilita de Stefan: 160 kW,
+// dimensionata pe consumul total cu pierderi cu tot.
+const PUTERE_TINTA_KW = 160;
 
 const STORE = 'vladesti_pv_v1';
 
@@ -407,10 +413,15 @@ function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace
 function nf(n, d){
   return Number(n).toLocaleString('ro-RO', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
 }
-// Referinta pentru acoperire: consumul TOTAL al UAT pe 12 luni, nu doar al
-// locurilor legate de markere. Productia intra in balanta comunei, chiar daca
-// panourile nu stau pe locul de consum care o foloseste.
-const CONSUM_UAT = Object.keys(LC).reduce((s, c) => s + LC[c][1], 0);
+// Referinta pentru acoperire: consumul TOTAL al UAT, nu doar al locurilor
+// legate de markere. Productia intra in balanta comunei, chiar daca panourile
+// nu stau pe locul de consum care o foloseste.
+// 186.620 kWh = tot ce s-a facturat pe cele 173 de facturi din dosar, cifra de
+// referinta stabilita de Stefan. Consumurile pe loc de consum din tabelul LC
+// sunt pe fereastra de 12 luni iul.2025-iun.2026 si insumeaza 181.758 kWh,
+// adica 2,7% mai putin — de aceea totalul nu se obtine adunand coloana.
+const CONSUM_UAT = 186620;
+const CONSUM_LC_12L = Object.keys(LC).reduce((s, c) => s + LC[c][1], 0);
 
 function kwOf(p){ return (stOf(p.id).panouri || 0) * PUTERE_PANOU_W / 1000; }
 function consumOf(p){
@@ -673,9 +684,16 @@ function updateLegend(){
   document.getElementById('kProd').textContent = nf(prod) + ' kWh/an';
   document.getElementById('kUat').textContent  = nf(CONSUM_UAT) + ' kWh/an';
   document.getElementById('kInst').textContent = nf(consInst) + ' kWh/an';
-  const pct = prod / CONSUM_UAT * 100;
-  document.getElementById('pbar').style.width = Math.min(100, pct) + '%';
-  document.getElementById('ptxt').textContent = nf(pct, 1) + '% din consumul total al UAT';
+
+  // Bara urmareste tinta de putere, adica exact ce completezi punct cu punct.
+  const panTinta = Math.round(PUTERE_TINTA_KW * 1000 / PUTERE_PANOU_W);
+  document.getElementById('kTinta').textContent = nf(PUTERE_TINTA_KW) + ' kW (' + nf(panTinta) + ' panouri)';
+  const pctT = kw / PUTERE_TINTA_KW * 100;
+  document.getElementById('pbar').style.width = Math.min(100, pctT) + '%';
+  document.getElementById('ptxt').textContent =
+    nf(pctT, 1) + '% din tinta · mai sunt ' + nf(Math.max(0, panTinta - pan)) + ' panouri';
+  document.getElementById('ptxt2').textContent =
+    'productia acopera ' + nf(prod / CONSUM_UAT * 100, 1) + '% din consumul UAT';
 }
 
 // ── Export / reset ──────────────────────────────────────────────────────────
@@ -787,7 +805,7 @@ document.getElementById('btnReset').addEventListener('click',  e => { e.stopProp
 map.fitBounds(L.latLngBounds(PUNCTE.map(p => [p.lat, p.lon])), {padding:[60,60], maxZoom:15});
 document.getElementById('subTxt').textContent =
   PUNCTE.length + ' locatii · consum total UAT ' + nf(CONSUM_UAT) +
-  ' kWh/an (29 locuri de consum, 12 luni din facturi)';
+  ' kWh (29 locuri de consum, 173 facturi) · tinta ' + nf(PUTERE_TINTA_KW) + ' kW';
 </script>
 </body>
 </html>
