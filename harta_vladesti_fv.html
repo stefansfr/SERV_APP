@@ -84,6 +84,13 @@
   .popup-box .tag{display:inline-block;font-size:10.5px;padding:2px 7px;border-radius:20px;background:#0b0d11;color:var(--muted);border:1px solid var(--border);}
   .popup-box .tag.teren{color:#04121a;font-weight:700;border-color:transparent;}
   .nota{font-size:11.5px;color:var(--muted);font-style:italic;margin-bottom:8px;line-height:1.35;}
+  .inst-btn{
+    width:100%;padding:8px;border-radius:9px;border:1px solid var(--border);
+    background:var(--panel2);color:var(--muted);cursor:pointer;font-size:12.5px;
+    font-weight:700;font-family:inherit;margin-bottom:9px;transition:background .15s;
+  }
+  .inst-btn:hover{background:#2a3040;}
+  .inst-btn.on{background:#00e676;color:#04121a;border-color:transparent;}
 
   .lc-list{margin-bottom:8px;}
   .lc-head{font-size:11px;color:var(--muted);margin-bottom:3px;}
@@ -189,14 +196,14 @@
   <div id="legend-body">
     <div id="catRows"></div>
     <div class="leg-sep"></div>
-    <div id="terenRows"></div>
+    <div id="instRows"></div>
     <div class="leg-sep"></div>
     <div class="kpi"><span>Panouri amplasate</span><b id="kPan">0</b></div>
     <div class="kpi"><span>Putere instalata</span><b class="hi" id="kKw">0,00 kW</b></div>
     <div class="kpi"><span>Productie estimata</span><b id="kProd">0 kWh/an</b></div>
     <div class="leg-sep" style="margin:8px 0"></div>
-    <div class="kpi"><span>Consum total UAT</span><b class="hi" id="kUat">0 kWh/an</b></div>
-    <div class="kpi"><span>din care la locuri legate</span><b id="kCons">0 kWh/an</b></div>
+    <div class="kpi"><span>Consum anual unde instalez</span><b class="hi" id="kInst">0 kWh/an</b></div>
+    <div class="kpi"><span>Consum total UAT</span><b id="kUat">0 kWh/an</b></div>
     <div class="progress-wrap"><div class="progress-bar" id="pbar"></div></div>
     <div class="progress-txt" id="ptxt">–</div>
     <div class="leg-tools">
@@ -256,8 +263,15 @@ const LC = {
   '0051984893': ['STATIE ASFALT VLADESTI', 0]
 };
 
-// ── Disponibilitatea terenului — atributul care decide amplasarea ───────────
-// Culoarea markerului vine de aici, nu din tip. Tipul e dat de iconita.
+// ── Decizia de instalare — culoarea markerului ──────────────────────────────
+// Doua culori, atat: verde unde se pun panouri, gri unde nu. Se comuta din
+// popup si se tine in localStorage, deci decizia din teren bate fisierul.
+const INSTALARE = {
+  da: { label:'Instalez panouri', color:'#00e676' },
+  nu: { label:'Fara panouri',     color:'#9e9e9e' }
+};
+
+// ── Disponibilitatea terenului — ramane ca informatie, nu mai da culoarea ───
 const TEREN = {
   da:         { label:'Teren disponibil',        color:'#00e676' },
   putin:      { label:'Teren putin',             color:'#ff9100' },
@@ -279,13 +293,13 @@ const PUNCTE = [
   { id:'IL8',    nume:'Punct Iluminat Public 8', tip:'bec', teren:'fara',
     lat:45.150322, lon:24.309311, nota:'Nu are teren disponibil. Cel mai nordic punct, la ~2 km de restul retelei.', lc:[] },
 
-  { id:'TER-IL8', nume:'Teren potential pentru mutarea IL8', tip:'teren', teren:'da',
+  { id:'TER-IL8', inst:true, nume:'Teren potential pentru mutarea IL8', tip:'teren', teren:'da',
     lat:45.152287, lon:24.301422, nota:'Teren propus pentru mutarea punctului IL8. Distanta pana la IL8: 656 m — mutarea inseamna racord nou, nu doar relocarea panourilor.', lc:[] },
 
   { id:'IL14',   nume:'Punct Iluminat 14', tip:'bec', teren:'putin',
     lat:45.131809, lon:24.288586, nota:'Foarte putin teren disponibil.', lc:[] },
 
-  { id:'TER-N',  nume:'Teren disponibil — neasociat', tip:'teren', teren:'da',
+  { id:'TER-N', inst:true,  nume:'Teren disponibil — neasociat', tip:'teren', teren:'da',
     lat:45.132366, lon:24.302773, nota:'Teren disponibil, momentan fara punct atribuit. Se afla la 59 m de Punct iluminat 7, care e notat "fara teren" — de verificat daca poate deservi PI7.', lc:[] },
 
   { id:'IL7',    nume:'Punct iluminat 7', tip:'bec', teren:'fara',
@@ -305,7 +319,7 @@ const PUNCTE = [
   { id:'IL9',    nume:'Punct Iluminat 9', tip:'bec', teren:'fara',
     lat:45.124855, lon:24.308277, nota:'Nu are teren disponibil.', lc:[] },
 
-  { id:'STAPA',  nume:'Statie Apa', tip:'casa', teren:'da',
+  { id:'STAPA', inst:true,  nume:'Statie Apa', tip:'casa', teren:'da',
     lat:45.1207778, lon:24.2901111, nota:'Teren disponibil. Singurul punct dat in grade-minute-secunde: 45°07\'14.8"N 24°17\'24.4"E. Se afla la 80 m de Punct Aprindere 11 — practic in acelasi loc. Locul de consum nu e stabilit: in facturi sunt doua candidate, "IL PB PTA POMPE APA VLADESTI 1" si "Il Pb Pompe Apa Vladesti 2", ambele marcate ca iluminat public.', lc:[] },
 
   { id:'PA13',   nume:'Punct Aprindere 13', tip:'bec', teren:'fara',
@@ -317,7 +331,7 @@ const PUNCTE = [
   { id:'PA12',   nume:'Punct Aprindere 12', tip:'bec', teren:'nedefinit',
     lat:45.122108, lon:24.281046, nota:'Se leaga la locul de consum 23, aflat la 195 m spre nord-est.', lc:[] },
 
-  { id:'LC23',   nume:'Loc consum 23', tip:'casa', teren:'da',
+  { id:'LC23', inst:true,   nume:'Loc consum 23', tip:'casa', teren:'da',
     lat:45.123486, lon:24.282593, nota:'Teren disponibil 10.000 mp — cea mai mare suprafata din lista. Identitatea locului de consum nu e confirmata: dupa numerotarea tabelului de audit, pozitia 23 este STATIE ASFALT VLADESTI, care are consum zero pe toata perioada facturata si s-ar potrivi cu o platforma de 1 ha.',
     lc:[['0051984893',false]] },
 
@@ -327,18 +341,16 @@ const PUNCTE = [
   { id:'GRP1',   nume:'Grup — nota de teren nedescifrata', tip:'grup', teren:'nedefinit',
     lat:45.122074, lon:24.295965, nota:'Nota din teren, transcrisa ca atare: "18 lc grad vsche lc17 gradi veche 20 si pct aprindere 4". Dupa numerotarea auditului, 17 = STATIE ASFALT, 18 = SC. 8 ANI VLADESTI LINIE, 20 = CAMIN CULTURAL — dar nu se potriveste cu "gradinita veche". Nu am atasat niciun loc de consum pana nu se lamureste.', lc:[] },
 
-  { id:'GRP2',   nume:'Grup — Gradinita, Primarie, Camin cultural', tip:'grup', teren:'nedefinit',
-    lat:45.119198, lon:24.302969, nota:'Nota din teren: "au fost 15,16 19". Dupa numerotarea auditului 15 = GRADINITA si 19 = PRIMARIE se confirma; al treilea numar dat, 16, este SCOALA, iar CAMIN CULTURAL este 20. Am atasat denumirile pe care le-ai scris tu, nu numerele.',
-    lc:[['0051636645',false],['0050194107',false],['0050194109',false]] },
-
-  { id:'GRP3',   nume:'Loc consum scoala si sala de sport', tip:'grup', teren:'nedefinit',
-    lat:45.120132, lon:24.302492, nota:'La 110 m de grupul Gradinita/Primarie/Camin cultural.',
-    lc:[['0051671922',false],['0051984894',false]] },
+  // Cele doua puncte de la 45.120132/24.302492 si 45.119198/24.302969 erau la
+  // 110 m unul de altul; comasate intr-unul singur, pe prima coordonata.
+  { id:'GRP2',   nume:'Bloc obiective — Gradinita, Primarie, Camin cultural, Scoala, Sala de sport', tip:'grup', teren:'nedefinit',
+    lat:45.120132, lon:24.302492, nota:'Cele doua puncte notate in teren (45.120132/24.302492 si 45.119198/24.302969) erau la 110 m unul de altul si se trateaza in bloc; a ramas prima coordonata. Cele cinci locuri de consum insumeaza 29.641 kWh/an, adica 16,3% din consumul comunei — cel mai greu punct din lista. Nota de teren "au fost 15,16 19" se confirma pe numerotarea auditului la 15 = GRADINITA si 19 = PRIMARIE; 16 = SCOALA si 20 = CAMIN CULTURAL intra tot aici.',
+    lc:[['0051636645',false],['0050194107',false],['0050194109',false],['0051671922',false],['0051984894',false]] },
 
   { id:'IL3',    nume:'Punct Iluminat 3', tip:'bec', teren:'fara',
     lat:45.119446, lon:24.304762, nota:'Nu are teren.', lc:[] },
 
-  { id:'STAD',   nume:'Loc consum stadion', tip:'casa', teren:'da',
+  { id:'STAD', inst:true,   nume:'Loc consum stadion', tip:'casa', teren:'da',
     lat:45.115101, lon:24.316767, nota:'Are si teren, si cladire disponibile pentru instalarea PV.',
     lc:[['0051636644',false]] },
 
@@ -364,6 +376,21 @@ function saveState(){
 function stOf(id){
   if (!STATE[id]) STATE[id] = { panouri:0, obs:'' };
   return STATE[id];
+}
+// Decizia de instalare: ce ai comutat in harta bate valoarea din fisier.
+function instOf(p){
+  const s = STATE[p.id];
+  return (s && typeof s.inst === 'boolean') ? s.inst : !!p.inst;
+}
+function setInst(p, v){
+  stOf(p.id).inst = v;
+  if (saveState()){
+    markers[p.id].setIcon(makeIcon(p));
+    markers[p.id].setPopupContent(popupHtml(p));
+    wirePopup(p);
+    updateLegend();
+    toast(v ? '✓ ' + p.nume.split('—')[0].trim() + ': se instaleaza' : '○ ' + p.nume.split('—')[0].trim() + ': fara panouri');
+  }
 }
 
 // ── Utilitare ───────────────────────────────────────────────────────────────
@@ -462,7 +489,7 @@ function svgFor(p, color, w){
   return becSvg(color, w);
 }
 function makeIcon(p){
-  const color = (TEREN[p.teren] || TEREN.nedefinit).color;
+  const color = instOf(p) ? INSTALARE.da.color : INSTALARE.nu.color;
   const sizes = { bec:[30,36], casa:[30,34], grup:[38,34], teren:[34,32] };
   const [iw, ih] = sizes[p.tip] || sizes.bec;
   return L.divIcon({
@@ -520,12 +547,14 @@ function pvHtml(p){
 function popupHtml(p){
   const t = TEREN[p.teren] || TEREN.nedefinit;
   const s = stOf(p.id);
+  const on = instOf(p);
   return `<div class="popup-box">
     <h4>${esc(p.nume)}</h4>
     <div class="tags">
       <span class="tag">${esc((TIPURI[p.tip] || {}).label || p.tip)}</span>
-      <span class="tag teren" style="background:${t.color}">${esc(t.label)}</span>
+      <span class="tag">${esc(t.label)}</span>
     </div>
+    <button class="inst-btn ${on ? 'on' : ''}" id="instBtn">${on ? '✓ Instalez panouri aici' : '○ Fara panouri aici'}</button>
     ${p.nota ? `<div class="nota">${esc(p.nota)}</div>` : ''}
     ${lcHtml(p)}
     ${pvHtml(p)}
@@ -560,6 +589,8 @@ function wirePopup(p){
       if (cons > 0 && acopOut) acopOut.textContent = Math.round(prod / cons * 100) + '%';
     });
   }
+  const ib = document.getElementById('instBtn');
+  if (ib) ib.addEventListener('click', () => setInst(p, !instOf(p)));
   const btn = document.getElementById('obsSave');
   if (btn) btn.addEventListener('click', () => {
     const s = stOf(p.id);
@@ -609,29 +640,26 @@ function updateLegend(){
     });
   });
 
-  let ter = '';
-  Object.keys(TEREN).forEach(k => {
-    const n = PUNCTE.filter(p => p.teren === k).length;
-    if (!n) return;
-    ter += `<div class="leg-row" style="cursor:default">
-      <div class="leg-dot" style="background:${TEREN[k].color}"></div>
-      <div class="leg-label">${TEREN[k].label}</div>
+  const nDa = PUNCTE.filter(p => instOf(p)).length;
+  document.getElementById('instRows').innerHTML = [['da', nDa], ['nu', PUNCTE.length - nDa]]
+    .map(([k, n]) => `<div class="leg-row" style="cursor:default">
+      <div class="leg-dot" style="background:${INSTALARE[k].color}"></div>
+      <div class="leg-label">${INSTALARE[k].label}</div>
       <div class="leg-count">${n}</div>
-    </div>`;
-  });
-  document.getElementById('terenRows').innerHTML = ter;
+    </div>`).join('');
 
   const pan  = PUNCTE.reduce((s,p) => s + (stOf(p.id).panouri || 0), 0);
   const kw   = pan * PUTERE_PANOU_W / 1000;
   const prod = kw * PRODUCTIE_SPECIFICA;
-  const cons = PUNCTE.reduce((s,p) => s + consumOf(p), 0);
+  // Consumul locurilor atasate punctelor unde s-a decis instalarea.
+  const consInst = PUNCTE.filter(p => instOf(p)).reduce((s,p) => s + consumOf(p), 0);
   document.getElementById('kPan').textContent  = nf(pan);
   document.getElementById('kKw').textContent   = nf(kw, 2) + ' kW';
   document.getElementById('kwBig').textContent = nf(kw, 2) + ' kW';
   document.getElementById('miniTxt').textContent = nf(kw, 2) + ' kW · ' + pan + ' pan.';
   document.getElementById('kProd').textContent = nf(prod) + ' kWh/an';
   document.getElementById('kUat').textContent  = nf(CONSUM_UAT) + ' kWh/an';
-  document.getElementById('kCons').textContent = nf(cons) + ' kWh/an';
+  document.getElementById('kInst').textContent = nf(consInst) + ' kWh/an';
   const pct = prod / CONSUM_UAT * 100;
   document.getElementById('pbar').style.width = Math.min(100, pct) + '%';
   document.getElementById('ptxt').textContent = nf(pct, 1) + '% din consumul total al UAT';
@@ -641,7 +669,9 @@ function updateLegend(){
 function exportJson(){
   const out = PUNCTE.map(p => ({
     id:p.id, nume:p.nume, tip:p.tip, teren:p.teren, lat:p.lat, lon:p.lon,
+    instalez: instOf(p),
     lc:(p.lc||[]).map(x => x[0]),
+    consum_lc: consumOf(p),
     panouri: stOf(p.id).panouri || 0,
     kw: kwOf(p),
     obs: stOf(p.id).obs || ''
