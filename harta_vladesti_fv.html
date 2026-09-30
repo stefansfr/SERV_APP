@@ -243,6 +243,16 @@ const PUTERE_TINTA_KW = 160;
 
 const STORE = 'vladesti_pv_v1';
 
+// ── Legatura cu Sheet-ul din Drive ──────────────────────────────────────────
+// Pagina e statica si nu poate vorbi direct cu Google. Intre ele sta un Apps
+// Script publicat ca web app (codul: AppsScript_harta_vladesti.gs din dosarul
+// UAT Vladesti). Pune aici URL-ul care se termina in /exec dupa ce il publici.
+// Cat timp e gol, harta merge exact ca pana acum: totul doar in browserul tau.
+const SHEET_URL = '';
+const CINE_STORE = 'vladesti_pv_cine';
+const REIMPROSPATARE_MS = 60000;   // cat de des recitim foaia, ca sa vedem ce a scris celalalt
+let sheetOn = false;
+
 // ── Locuri de consum (din facturile Premier Energy, iul.2025 – iun.2026) ────
 // Sursa: "Centralizator facturi energie UAT Vladesti.xlsx", 173 facturi,
 // reconciliat factura cu factura cu totalul de pe pagina 1.
@@ -392,6 +402,60 @@ function stOf(id){
   if (!STATE[id]) STATE[id] = { panouri:0, obs:'' };
   return STATE[id];
 }
+// Numele celui care scrie, ca sa se vada in foaie cine a modificat ce.
+function cineSunt(){
+  let v = '';
+  try{ v = localStorage.getItem(CINE_STORE) || ''; }catch(e){}
+  if (!v){
+    v = (prompt('Cum te trec in foaie, ca sa se vada cine a modificat?') || '').trim();
+    try{ localStorage.setItem(CINE_STORE, v); }catch(e){}
+  }
+  return v;
+}
+
+// ── Citire din foaie ───────────────────────────────────────────────────────
+async function citesteFoaia(){
+  if (!SHEET_URL) return false;
+  try{
+    const res = await fetch(SHEET_URL + '?t=' + Date.now());
+    const d = await res.json();
+    if (d.error) throw new Error(d.error);
+    (d.puncte || []).forEach(row => {
+      const s = stOf(row.id);
+      s.panouri = row.panouri; s.inst = row.inst; s.obs = row.obs;
+      s.actualizat = row.actualizat; s.de = row.de;
+    });
+    sheetOn = true;
+    saveState();               // copie locala, ca sa mearga si fara semnal pe teren
+    return true;
+  }catch(err){
+    sheetOn = false;
+    console.warn('Sheet indisponibil', err);
+    return false;
+  }
+}
+
+// ── Scriere in foaie ───────────────────────────────────────────────────────
+async function scrieInFoaie(p){
+  if (!SHEET_URL) return;
+  const s = stOf(p.id);
+  const q = new URLSearchParams({
+    action:'save', id:p.id, panouri:String(s.panouri || 0),
+    inst: instOf(p) ? '1' : '0', obs: s.obs || '', de: cineSunt()
+  });
+  try{
+    const res = await fetch(SHEET_URL + '?' + q.toString());
+    const d = await res.json();
+    if (d.error) throw new Error(d.error);
+    sheetOn = true;
+    toast('✓ Salvat in foaia din Drive');
+  }catch(err){
+    sheetOn = false;
+    toast('⚠ Salvat doar pe calculatorul asta — foaia nu raspunde', 5000);
+  }
+  actualizeazaSubtitlu();
+}
+
 // Decizia de instalare: ce ai comutat in harta bate valoarea din fisier.
 function instOf(p){
   const s = STATE[p.id];
@@ -405,6 +469,7 @@ function setInst(p, v){
     wirePopup(p);
     updateLegend();
     toast(v ? '✓ ' + p.nume.split('—')[0].trim() + ': se instaleaza' : '○ ' + p.nume.split('—')[0].trim() + ': fara panouri');
+    scrieInFoaie(p);
   }
 }
 
@@ -622,9 +687,10 @@ function wirePopup(p){
     const ta = document.getElementById('obsTxt');
     s.obs = ta ? ta.value : s.obs;
     if (saveState()){
-      toast('✓ Salvat local: ' + s.panouri + ' panouri (' + nf(kwOf(p), 2) + ' kW)');
+      toast('✓ ' + s.panouri + ' panouri (' + nf(kwOf(p), 2) + ' kW)');
       markers[p.id].setIcon(makeIcon(p));
       updateLegend();
+      scrieInFoaie(p);
     }
   });
 }
@@ -796,16 +862,40 @@ function toggleGeo(){
   geoWatch = navigator.geolocation.watchPosition(geoSuccess, geoError, {enableHighAccuracy:true, timeout:15000, maximumAge:5000});
 }
 
+// ── Subtitlu, cu starea legaturii ───────────────────────────────────────────
+function actualizeazaSubtitlu(){
+  const stare = !SHEET_URL
+    ? 'date doar pe calculatorul asta'
+    : (sheetOn ? 'legat la foaia din Drive' : 'foaia nu raspunde, lucrez local');
+  document.getElementById('subTxt').textContent =
+    PUNCTE.length + ' locatii · consum total UAT ' + nf(CONSUM_UAT) +
+    ' kWh · tinta ' + nf(PUTERE_TINTA_KW) + ' kW · ' + stare;
+}
+
 // ── Start ───────────────────────────────────────────────────────────────────
 loadState();
 drawAll();
 updateLegend();
+actualizeazaSubtitlu();
 document.getElementById('btnExport').addEventListener('click', e => { e.stopPropagation(); exportJson(); });
 document.getElementById('btnReset').addEventListener('click',  e => { e.stopPropagation(); resetLocal(); });
 map.fitBounds(L.latLngBounds(PUNCTE.map(p => [p.lat, p.lon])), {padding:[60,60], maxZoom:15});
-document.getElementById('subTxt').textContent =
-  PUNCTE.length + ' locatii · consum total UAT ' + nf(CONSUM_UAT) +
-  ' kWh (29 locuri de consum, 173 facturi) · tinta ' + nf(PUTERE_TINTA_KW) + ' kW';
+
+// Foaia, daca e legata: o citim la pornire si apoi din minut in minut, ca sa
+// apara si ce a scris celalalt. Nu suprascriem cat timp un popup e deschis,
+// ca sa nu dispara textul pe care tocmai il scrii.
+if (SHEET_URL){
+  const reimprospateaza = async () => {
+    if (document.querySelector('.leaflet-popup')) return;
+    if (await citesteFoaia()){
+      PUNCTE.forEach(p => markers[p.id].setIcon(makeIcon(p)));
+      updateLegend();
+    }
+    actualizeazaSubtitlu();
+  };
+  reimprospateaza();
+  setInterval(reimprospateaza, REIMPROSPATARE_MS);
+}
 </script>
 </body>
 </html>
