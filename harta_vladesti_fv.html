@@ -92,6 +92,15 @@
   .popup-box .tag{display:inline-block;font-size:10.5px;padding:2px 7px;border-radius:20px;background:#0b0d11;color:var(--muted);border:1px solid var(--border);}
   .popup-box .tag.teren{color:#04121a;font-weight:700;border-color:transparent;}
   .nota{font-size:11.5px;color:var(--muted);font-style:italic;margin-bottom:8px;line-height:1.35;}
+  .idx-tag{
+    display:inline-block;background:var(--accent);color:#1a1400;font-weight:800;
+    font-size:11.5px;padding:1px 7px;border-radius:6px;vertical-align:2px;margin-right:2px;
+  }
+  .leaflet-tooltip.idx-lbl{
+    background:rgba(11,13,17,.82);border:1px solid var(--accent);color:var(--accent);
+    font-weight:800;font-size:11px;padding:1px 6px;border-radius:6px;box-shadow:none;
+  }
+  .leaflet-tooltip.idx-lbl:before{display:none;}
   .inst-btn{
     width:100%;padding:8px;border-radius:9px;border:1px solid var(--border);
     background:var(--panel2);color:var(--muted);cursor:pointer;font-size:12.5px;
@@ -318,70 +327,70 @@ const CULOARE_CABLU = '#ffd600';
 // lc: locurile de consum atasate. sigur=false inseamna potrivire PROPUSA de
 // mine din denumire sau din numerotarea auditului — se confirma pe teren.
 const PUNCTE = [
-  { id:'CAMIN', nume:'Camin Cultural', tip:'casa', poz:[1, 15, 16], inst:true, panouri:52,
+  { id:'CAMIN', idx:'PV-01', nume:'Camin Cultural', tip:'casa', poz:[1, 15, 16], inst:true, panouri:52,
     lat:45.119636, lon:24.303646,
     cabluri:[{lat:45.119446, lon:24.304762, eticheta:'IL Public — pozitiile 15 si 16', m:90}],
     nota:'Aici se aduc si cele doua locuri de consum de iluminat public, pozitiile 15 si 16, aflate la capatul liniei.',
     lc:[['0050194109',true], ['0051587741',true], ['0051587735',true]] },
 
-  { id:'GRAD', nume:'Gradinita', tip:'casa', poz:[4], inst:true, panouri:52,
+  { id:'GRAD', idx:'PV-02', nume:'Gradinita', tip:'casa', poz:[4], inst:true, panouri:52,
     lat:45.119368, lon:24.303465,
     estimat:{kwh:12500, ce:'Statie 22 kW + autobuz Ford, baterie 90 kWh — o incarcare completa la 2 zile lucratoare'},
     nota:'Se suplimenteaza cu statie de incarcare pentru autobuzul Ford de transport copii.',
     lc:[['0051636645',true]] },
 
-  { id:'SALA', nume:'Sala de Sport', tip:'casa', poz:[7], inst:true, panouri:40,
+  { id:'SALA', idx:'PV-04', nume:'Sala de Sport', tip:'casa', poz:[7], inst:true, panouri:40,
     lat:45.119427, lon:24.302833,
     nota:'',
     lc:[['0051984894',true]] },
 
-  { id:'SCOALA', nume:'Scoala', tip:'casa', poz:[8], inst:true, panouri:40,
+  { id:'SCOALA', idx:'PV-05', nume:'Scoala', tip:'casa', poz:[8], inst:true, panouri:40,
     lat:45.119814, lon:24.303142,
     nota:'Pozitia 8 din centralizator este "SC. 8 ANI VLADESTI LINIE". Exista si pozitia 9, "SCOALA", cu 2.177 kWh — de confirmat care dintre ele.',
     lc:[['0050193775',true]] },
 
-  { id:'PRIM', nume:'Primarie', tip:'casa', poz:[6], inst:true, panouri:30,
+  { id:'PRIM', idx:'PV-07', nume:'Primarie', tip:'casa', poz:[6], inst:true, panouri:30,
     lat:45.119669, lon:24.305098,
     estimat:{kwh:4167, ce:'Statie 22 kW + Renault Kangoo, baterie 45 kWh — o incarcare completa la 3 zile lucratoare'},
     nota:'Se suplimenteaza cu statie de incarcare pentru Renault Kangoo.',
     lc:[['0050194107',true]] },
 
-  { id:'SCV', nume:'Scoala Veche', tip:'casa', poz:[11, 12, 2, 22], inst:true, panouri:52,
+  { id:'SCV', idx:'PV-03', nume:'Scoala Veche', tip:'casa', poz:[11, 12, 2, 22], inst:true, panouri:52,
     lat:45.121882, lon:24.295929,
     cabluri:[{lat:45.121624, lon:24.296026, eticheta:'Iluminat public — Il Pb PTA Vladesti 2', m:30},
              {lat:45.122214, lon:24.296071, eticheta:'Centrul de Ingrijire', m:39}],
     nota:'Un singur amplasament pentru patru locuri de consum. Cele doua bransamente ale scolii, monofazat (pozitia 11) si trifazat (pozitia 12), se reduc la unul singur: se renunta la cel monofazat. De aici se alimenteaza iluminatul public de la 30 m si Centrul de Ingrijire de la 39 m. Teren in proprietatea primariei, dat in concesiune — de verificat. Montaj pe terenul cu CF 37875.',
     lc:[['0050193664',true], ['0050193663',true], ['0051705700',true], ['0051630969',true]] },
 
-  { id:'PAPA1', nume:'IL PB PTA Pompe Apa Vladesti 1', tip:'bec', poz:[20], inst:true, panouri:30,
+  { id:'PAPA1', idx:'PV-09', nume:'IL PB PTA Pompe Apa Vladesti 1', tip:'bec', poz:[20], inst:true, panouri:30,
     lat:45.120778, lon:24.290111,
     cabluri:[{lat:45.121174, lon:24.28891, eticheta:'Punct de iluminat', m:104}],
     nota:'Montaj pe teren; punctul de iluminat se alimenteaza prin cablul marcat.',
     lc:[['0051587738',true]] },
 
-  { id:'ILV3', nume:'Il Pb PTAB Vladesti 3', tip:'bec', poz:[23], inst:true, panouri:30,
+  { id:'ILV3', idx:'PV-10', nume:'Il Pb PTAB Vladesti 3', tip:'bec', poz:[23], inst:true, panouri:30,
     lat:45.124329, lon:24.287542,
     nota:'Montaj chiar langa punctul de aprindere. Teren disponibil 10 x 6 m, la sol. Se trimite CF.',
     lc:[['0051630971',true]] },
 
-  { id:'PAPA2', nume:'Il Pb Pompe Apa Vladesti 2', tip:'bec', poz:[17], inst:true, panouri:30,
+  { id:'PAPA2', idx:'PV-08', nume:'Il Pb Pompe Apa Vladesti 2', tip:'bec', poz:[17], inst:true, panouri:30,
     lat:45.12263, lon:24.281905,
     cabluri:[{lat:45.122108, lon:24.281046, eticheta:'Punct de aprindere', m:89}],
     nota:'Montaj pe teren adiacent, peste pod: terenul e peste apa fata de punctul de aprindere. Se trimite CF.',
     lc:[['0051630972',true]] },
 
-  { id:'FOTB', nume:'Terenul de Fotbal', tip:'casa', poz:[14], inst:true, panouri:40,
+  { id:'FOTB', idx:'PV-06', nume:'Terenul de Fotbal', tip:'casa', poz:[14], inst:true, panouri:40,
     lat:45.115101, lon:24.316767,
     estimat:{kwh:-4536, ce:'Pompa de caldura 16 kW termici, in locul centralei electrice — economie, nu consum in plus'},
     nota:'Pompa inlocuieste centrala electrica, care reprezinta circa 80% din consumul stadionului (6.350 din 7.938 kWh/an). La SCOP 3,5 pompa acopera acelasi necesar termic cu 1.814 kWh/an, deci consumul scade cu 4.536 kWh/an. Ghidul cere ca pompa sa inlocuiasca minimum 50% din energia termica de referinta; aici acopera 100%.',
     lc:[['0051636644',true]] },
 
-  { id:'FUND', nume:'IL PUBLIC PTA FUNDATURA', tip:'bec', poz:[24], inst:true, panouri:30,
+  { id:'FUND', idx:'PV-11', nume:'IL PUBLIC PTA FUNDATURA', tip:'bec', poz:[24], inst:true, panouri:30,
     lat:45.152287, lon:24.301422,
     nota:'Se monteaza aici si se realimenteaza iluminatul din acest loc. Teren pe CF.',
     lc:[['0051587737',true]] },
 
-  { id:'TRUND', nume:'IL PUBLIC PTA TRUNDIN', tip:'bec', poz:[25], inst:true, panouri:30,
+  { id:'TRUND', idx:'PV-12', nume:'IL PUBLIC PTA TRUNDIN', tip:'bec', poz:[25], inst:true, panouri:30,
     lat:45.1343, lon:24.318144,
     cabluri:[{lat:45.133709, lon:24.317308, eticheta:'Punct de aprindere', m:93}],
     nota:'Montaj pe teren la CF 37875; de aici se alimenteaza punctul de aprindere.',
@@ -658,7 +667,7 @@ function popupHtml(p){
   const poz = (p.poz || []);
   return `<div class="popup-box">
     <div class="popup-scroll">
-      <h4>${esc(p.nume)}</h4>
+      <h4>${p.idx ? `<span class="idx-tag">${esc(p.idx)}</span> ` : ''}${esc(p.nume)}</h4>
       <div class="tags">
         <span class="tag">${esc((TIPURI[p.tip] || {}).label || p.tip)}</span>
         ${poz.length ? `<span class="tag">${poz.length > 1 ? 'Pozitiile' : 'Pozitia'} ${poz.join(', ')}</span>` : ''}
@@ -728,6 +737,8 @@ function drawAll(){
       .addTo(tipGroups[p.tip] || tipGroups.bec)
       .bindPopup(popupHtml(p), {closeButton:true, maxWidth:300});
     m.on('popupopen', () => { m.setPopupContent(popupHtml(p)); wirePopup(p); });
+    // Indicele instalatiei, vizibil permanent langa marker.
+    if (p.idx) m.bindTooltip(p.idx, {permanent:true, direction:'right', offset:[10,-6], className:'idx-lbl'});
     markers[p.id] = m;
 
     // Cablul catre punctul alimentat, plus un marcaj mic la celalalt capat.
