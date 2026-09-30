@@ -313,7 +313,7 @@ const CULOARE_CABLU = '#ffd600';
 const PUNCTE = [
   { id:'CAMIN', nume:'Camin Cultural', tip:'casa', poz:[1, 15, 16], inst:true, panouri:0,
     lat:45.119636, lon:24.303646,
-    cablu:{lat:45.119446, lon:24.304762, eticheta:'IL Public — pozitiile 15 si 16', m:90},
+    cabluri:[{lat:45.119446, lon:24.304762, eticheta:'IL Public — pozitiile 15 si 16', m:90}],
     nota:'Aici se aduc si cele doua locuri de consum de iluminat public, pozitiile 15 si 16, aflate la capatul liniei.',
     lc:[['0050194109',true], ['0051587741',true], ['0051587735',true]] },
 
@@ -339,25 +339,16 @@ const PUNCTE = [
     nota:'Se suplimenteaza cu statie de incarcare pentru Renault Kangoo.',
     lc:[['0050194107',true]] },
 
-  { id:'ILV2', nume:'Iluminat Public Vladesti 2', tip:'bec', poz:[22], inst:true, panouri:0,
-    lat:45.121624, lon:24.296026,
-    cablu:{lat:45.121882, lon:24.295929, eticheta:'Scoala Veche — de aici se realimenteaza', m:30},
-    nota:'Se realimenteaza de la Scoala Veche.',
-    lc:[['0051630969',true]] },
-
-  { id:'SCV', nume:'Scoala Veche', tip:'casa', poz:[11, 12], inst:true, panouri:0,
+  { id:'SCV', nume:'Scoala Veche', tip:'casa', poz:[11, 12, 2, 22], inst:true, panouri:0,
     lat:45.121882, lon:24.295929,
-    nota:'Are doua bransamente, monofazat (pozitia 11) si trifazat (pozitia 12). Se renunta la cel monofazat si ramane unul singur; consumurile celor doua pozitii se cumuleaza aici. Teren in proprietatea primariei, dat in concesiune — de verificat. Montaj pe terenul cu CF 37875.',
-    lc:[['0050193664',true], ['0050193663',true]] },
-
-  { id:'CING', nume:'Centrul de Ingrijire', tip:'casa', poz:[2], inst:true, panouri:0,
-    lat:45.122214, lon:24.296071,
-    nota:'',
-    lc:[['0051705700',true]] },
+    cabluri:[{lat:45.121624, lon:24.296026, eticheta:'Iluminat public — Il Pb PTA Vladesti 2', m:30},
+             {lat:45.122214, lon:24.296071, eticheta:'Centrul de Ingrijire', m:39}],
+    nota:'Un singur amplasament pentru patru locuri de consum. Cele doua bransamente ale scolii, monofazat (pozitia 11) si trifazat (pozitia 12), se reduc la unul singur: se renunta la cel monofazat. De aici se alimenteaza iluminatul public de la 30 m si Centrul de Ingrijire de la 39 m. Teren in proprietatea primariei, dat in concesiune — de verificat. Montaj pe terenul cu CF 37875.',
+    lc:[['0050193664',true], ['0050193663',true], ['0051705700',true], ['0051630969',true]] },
 
   { id:'PAPA1', nume:'IL PB PTA Pompe Apa Vladesti 1', tip:'bec', poz:[20], inst:true, panouri:30,
     lat:45.120778, lon:24.290111,
-    cablu:{lat:45.121174, lon:24.28891, eticheta:'Punct de iluminat', m:104},
+    cabluri:[{lat:45.121174, lon:24.28891, eticheta:'Punct de iluminat', m:104}],
     nota:'Montaj pe teren; punctul de iluminat se alimenteaza prin cablul marcat.',
     lc:[['0051587738',true]] },
 
@@ -368,7 +359,7 @@ const PUNCTE = [
 
   { id:'PAPA2', nume:'Il Pb Pompe Apa Vladesti 2', tip:'bec', poz:[17], inst:true, panouri:30,
     lat:45.12263, lon:24.281905,
-    cablu:{lat:45.122108, lon:24.281046, eticheta:'Punct de aprindere', m:89},
+    cabluri:[{lat:45.122108, lon:24.281046, eticheta:'Punct de aprindere', m:89}],
     nota:'Montaj pe teren adiacent, peste pod: terenul e peste apa fata de punctul de aprindere. Se trimite CF.',
     lc:[['0051630972',true]] },
 
@@ -385,7 +376,7 @@ const PUNCTE = [
 
   { id:'TRUND', nume:'IL PUBLIC PTA TRUNDIN', tip:'bec', poz:[25], inst:true, panouri:30,
     lat:45.1343, lon:24.318144,
-    cablu:{lat:45.133709, lon:24.317308, eticheta:'Punct de aprindere', m:93},
+    cabluri:[{lat:45.133709, lon:24.317308, eticheta:'Punct de aprindere', m:93}],
     nota:'Montaj pe teren la CF 37875; de aici se alimenteaza punctul de aprindere.',
     lc:[['0051587743',true]] }
 ];
@@ -660,11 +651,11 @@ function popupHtml(p){
       <div class="tags">
         <span class="tag">${esc((TIPURI[p.tip] || {}).label || p.tip)}</span>
         ${poz.length ? `<span class="tag">${poz.length > 1 ? 'Pozitiile' : 'Pozitia'} ${poz.join(', ')}</span>` : ''}
-        ${p.cablu ? `<span class="tag" style="color:${CULOARE_CABLU}">cablu ${p.cablu.m} m</span>` : ''}
+        ${(p.cabluri || []).map(c => `<span class="tag" style="color:${CULOARE_CABLU}">cablu ${c.m} m</span>`).join('')}
       </div>
       <button class="inst-btn ${on ? 'on' : ''}" id="instBtn">${on ? '✓ Instalez panouri aici' : '○ Fara panouri aici'}</button>
       ${p.nota ? `<div class="nota">${esc(p.nota)}</div>` : ''}
-      ${p.cablu ? `<div class="nota" style="color:${CULOARE_CABLU};opacity:.9">↔ ${esc(p.cablu.eticheta)} — ${p.cablu.m} m in linie dreapta</div>` : ''}
+      ${(p.cabluri || []).map(c => `<div class="nota" style="color:${CULOARE_CABLU};opacity:.9">↔ ${esc(c.eticheta)} — ${c.m} m in linie dreapta</div>`).join('')}
       ${lcHtml(p)}
       ${pvHtml(p)}
       <div class="obs-wrap">
@@ -729,16 +720,16 @@ function drawAll(){
     markers[p.id] = m;
 
     // Cablul catre punctul alimentat, plus un marcaj mic la celalalt capat.
-    if (p.cablu){
-      L.polyline([[p.lat, p.lon], [p.cablu.lat, p.cablu.lon]], {
+    (p.cabluri || []).forEach(c => {
+      L.polyline([[p.lat, p.lon], [c.lat, c.lon]], {
         color: CULOARE_CABLU, weight: 3, opacity: .9, dashArray: '7 6'
-      }).bindTooltip(`${p.nume} → ${p.cablu.eticheta} · ${p.cablu.m} m`,
+      }).bindTooltip(`${p.nume} → ${c.eticheta} · ${c.m} m`,
                      {sticky:true}).addTo(grupCabluri);
-      L.circleMarker([p.cablu.lat, p.cablu.lon], {
+      L.circleMarker([c.lat, c.lon], {
         radius: 6, color: CULOARE_CABLU, weight: 2.5, fillColor: '#0b0d11', fillOpacity: .9
-      }).bindTooltip(`${p.cablu.eticheta}<br>${p.cablu.lat.toFixed(6)}, ${p.cablu.lon.toFixed(6)}`,
+      }).bindTooltip(`${esc(c.eticheta)}<br>${c.lat.toFixed(6)}, ${c.lon.toFixed(6)}`,
                      {direction:'top'}).addTo(grupCabluri);
-    }
+    });
   });
 }
 
