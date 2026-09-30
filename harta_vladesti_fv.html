@@ -235,9 +235,10 @@
 // Nimic nu pleaca spre un server.
 const PUTERE_PANOU_W = 500;      // W/panou — se schimba aici, o singura data
 
-// PREZUMTIE, nu data de proiect: productia specifica folosita la estimare.
-// Se inlocuieste cu PVGIS pe fiecare amplasament inainte de orice document.
-const PRODUCTIE_SPECIFICA = 1250;   // kWh/kWp/an
+// Productia specifica, din experienta USS pe orientari variate: 100 kW dau
+// 110.000-115.000 kWh/an, adica 1.100-1.150 kWh/kWp. S-a luat mijlocul.
+// Se confirma cu PVGIS pe fiecare amplasament la faza de proiect.
+const PRODUCTIE_SPECIFICA = 1125;   // kWh/kWp/an
 
 // Tinta de putere instalata pentru toata comuna. A crescut de la 160 la 228 kW
 // odata cu consumatorii noi estimati; consumul mai mare se probeaza prin auditul
@@ -643,7 +644,7 @@ function pvHtml(p){
     </div>
     <div class="pv-calc">
       Productie estimata: <b id="prodOut">${nf(prod)}</b> kWh/an
-      <span style="opacity:.7">(la ${nf(PRODUCTIE_SPECIFICA)} kWh/kWp — prezumtie, se inlocuieste cu PVGIS)</span>
+      <span style="opacity:.7">(la ${nf(PRODUCTIE_SPECIFICA)} kWh/kWp, din experienta pe orientari variate)</span>
       <br>Aduce <b id="uatOut">${nf(prod / CONSUM_UAT * 100, 1)}%</b> din consumul total al UAT
       <span style="opacity:.7">(${nf(CONSUM_UAT)} kWh/an)</span>
       ${cons > 0 ? `<br>Acopera <b id="acopOut">${acop == null ? '–' : acop}%</b> din consumul de aici` : ''}
