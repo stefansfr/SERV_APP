@@ -214,8 +214,10 @@
     <div class="progress-txt" id="ptxt">–</div>
     <div class="leg-sep" style="margin:9px 0"></div>
     <div class="kpi"><span>Productie estimata</span><b id="kProd">0 kWh/an</b></div>
-    <div class="kpi"><span>Consum total UAT</span><b id="kUat">0 kWh/an</b></div>
-    <div class="kpi"><span>Consum anual unde instalez</span><b id="kInst">0 kWh/an</b></div>
+    <div class="kpi"><span>Consum facturat</span><b id="kReal">0 kWh/an</b></div>
+    <div class="kpi"><span>Estimat, consumatori noi</span><b id="kEst">0 kWh/an</b></div>
+    <div class="kpi"><span>Consum total UAT</span><b class="hi" id="kUat">0 kWh/an</b></div>
+    <div class="kpi"><span>din care unde instalez</span><b id="kInst">0 kWh/an</b></div>
     <div class="progress-txt" id="ptxt2">–</div>
     <div class="leg-tools">
       <button id="btnExport" title="Copiaza panourile si comentariile ca JSON">📋 Export</button>
@@ -317,7 +319,8 @@ const PUNCTE = [
 
   { id:'GRAD', nume:'Gradinita', tip:'casa', poz:[4], inst:true, panouri:0,
     lat:45.119368, lon:24.303465,
-    nota:'Se suplimenteaza cu statie de incarcare pentru Ford Transit, 89 kWh.',
+    estimat:{kwh:12500, ce:'Statie 22 kW + autobuz Ford, baterie 90 kWh — o incarcare completa la 2 zile lucratoare'},
+    nota:'Se suplimenteaza cu statie de incarcare pentru autobuzul Ford de transport copii.',
     lc:[['0051636645',true]] },
 
   { id:'SALA', nume:'Sala de Sport', tip:'casa', poz:[7], inst:true, panouri:0,
@@ -332,6 +335,7 @@ const PUNCTE = [
 
   { id:'PRIM', nume:'Primarie', tip:'casa', poz:[6], inst:true, panouri:0,
     lat:45.119669, lon:24.305098,
+    estimat:{kwh:4167, ce:'Statie 22 kW + Renault Kangoo, baterie 45 kWh — o incarcare completa la 3 zile lucratoare'},
     nota:'Se suplimenteaza cu statie de incarcare pentru Renault Kangoo.',
     lc:[['0050194107',true]] },
 
@@ -370,6 +374,7 @@ const PUNCTE = [
 
   { id:'FOTB', nume:'Terenul de Fotbal', tip:'casa', poz:[14], inst:true, panouri:0,
     lat:45.115101, lon:24.316767,
+    estimat:{kwh:2761, ce:'Pompa de caldura 16 kW termici — 4 h/zi in oct-feb, la SCOP 3,5'},
     nota:'Aici se suplimenteaza cu o pompa de caldura.',
     lc:[['0051636644',true]] },
 
@@ -483,14 +488,28 @@ function nf(n, d){
 // Referinta pentru acoperire: consumul TOTAL al UAT, nu doar al locurilor
 // legate de markere. Productia intra in balanta comunei, chiar daca panourile
 // nu stau pe locul de consum care o foloseste.
-// Tabelul LC tine acum consumurile TOTALE din centralizator (cele 173 de
-// facturi), asa ca totalul se obtine adunand coloana: 186.620 kWh.
-const CONSUM_UAT = Object.keys(LC).reduce((s, c) => s + LC[c][1], 0);
+// Tabelul LC tine consumurile TOTALE din centralizator (cele 173 de facturi):
+// suma coloanei da 186.620 kWh.
+const CONSUM_REAL = Object.keys(LC).reduce((s, c) => s + LC[c][1], 0);
+
+// Consumatori estimati care nu stau pe niciun marker. Detaliile si metoda de
+// calcul sunt in foaia "Consumuri estimate" din centralizator.
+const ESTIMAT_EXTERN = [
+  { nume:'Statie incarcare autobuze 300 kW DC, sat Priporu', kwh:176842,
+    nota:'Statie cu pantograf din proiectul PNRR de transport public al judetului. 8 sesiuni/zi x 12 min, 350 de zile — ipoteza.' }
+];
+const ESTIMAT_PUNCTE = PUNCTE.reduce((s, p) => s + ((p.estimat && p.estimat.kwh) || 0), 0);
+const ESTIMAT_TOTAL  = ESTIMAT_PUNCTE + ESTIMAT_EXTERN.reduce((s, x) => s + x.kwh, 0);
+const CONSUM_UAT     = CONSUM_REAL + ESTIMAT_TOTAL;
 
 function kwOf(p){ return (stOf(p.id).panouri || 0) * PUTERE_PANOU_W / 1000; }
-function consumOf(p){
+function consumOf(p){          // consum facturat
   return (p.lc || []).reduce((s, x) => s + (LC[x[0]] ? LC[x[0]][1] : 0), 0);
 }
+function estimatOf(p){         // consumator nou, estimat
+  return (p.estimat && p.estimat.kwh) || 0;
+}
+function totalOf(p){ return consumOf(p) + estimatOf(p); }
 function prodOf(p){ return kwOf(p) * PRODUCTIE_SPECIFICA; }
 
 // ── Harta ───────────────────────────────────────────────────────────────────
@@ -583,31 +602,36 @@ function makeIcon(p){
 // ── Popup ───────────────────────────────────────────────────────────────────
 function lcHtml(p){
   if (!p.lc || !p.lc.length){
-    const msg = p.tip === 'teren'
-      ? 'Teren, nu loc de consum — nu are consum propriu.'
-      : 'Niciun loc de consum atasat inca. Numerotarea punctelor de iluminat din teren nu se poate lega de codurile din facturi fara cheia ta.';
-    return `<div class="lc-list"><div class="lc-none">${msg}</div></div>`;
+    return `<div class="lc-list"><div class="lc-none">Fara loc de consum atasat.</div></div>`;
   }
   let rows = '';
-  p.lc.forEach(([cod, sigur]) => {
+  p.lc.forEach(([cod]) => {
     const r = LC[cod];
     if (!r) return;
     rows += `<div class="lc-row">
-      <span class="lc-nm">${esc(r[0])}${sigur ? '' : '<span class="badge-nesigur">propus</span>'}</span>
+      <span class="lc-nm">${esc(r[0])}</span>
       <span class="lc-cod">${esc(cod)}</span>
       <span class="lc-kwh">${nf(r[1])} kWh</span>
     </div>`;
   });
-  const tot = consumOf(p);
+  const real = consumOf(p), est = estimatOf(p);
+  // Consumatorul nou apare ca rand separat, ca sa nu se amestece cu facturatul.
+  if (est) rows += `<div class="lc-row" style="border-color:rgba(255,214,0,.45)">
+      <span class="lc-nm" style="color:${CULOARE_CABLU}">${esc(p.estimat.ce.split('—')[0].trim())}</span>
+      <span class="lc-cod" style="color:${CULOARE_CABLU}">estimat</span>
+      <span class="lc-kwh" style="color:${CULOARE_CABLU}">${nf(est)} kWh</span>
+    </div>`;
+  const nrRanduri = p.lc.length + (est ? 1 : 0);
   return `<div class="lc-list">
-    <div class="lc-head">Locuri de consum atasate — consum pe 12 luni (iul.2025–iun.2026)</div>
+    <div class="lc-head">Consum anual — facturat${est ? ' si estimat' : ''}</div>
     ${rows}
-    ${p.lc.length > 1 ? `<div class="lc-row"><span class="lc-nm"><b>Total</b></span><span class="lc-kwh">${nf(tot)} kWh</span></div>` : ''}
+    ${nrRanduri > 1 ? `<div class="lc-row"><span class="lc-nm"><b>Total</b></span><span class="lc-kwh">${nf(real + est)} kWh</span></div>` : ''}
+    ${est ? `<div class="nota" style="margin:5px 0 0">${esc(p.estimat.ce)}. Metoda de calcul, in foaia „Consumuri estimate" din centralizator.</div>` : ''}
   </div>`;
 }
 function pvHtml(p){
   const s = stOf(p.id);
-  const kw = kwOf(p), prod = prodOf(p), cons = consumOf(p);
+  const kw = kwOf(p), prod = prodOf(p), cons = totalOf(p);
   const acop = cons > 0 ? Math.round(prod / cons * 100) : null;
   return `<div class="pv-wrap">
     <div class="pv-row">
@@ -621,7 +645,7 @@ function pvHtml(p){
       <span style="opacity:.7">(la ${nf(PRODUCTIE_SPECIFICA)} kWh/kWp — prezumtie, se inlocuieste cu PVGIS)</span>
       <br>Aduce <b id="uatOut">${nf(prod / CONSUM_UAT * 100, 1)}%</b> din consumul total al UAT
       <span style="opacity:.7">(${nf(CONSUM_UAT)} kWh/an)</span>
-      ${cons > 0 ? `<br>Acopera <b id="acopOut">${acop == null ? '–' : acop}%</b> din consumul locurilor atasate` : ''}
+      ${cons > 0 ? `<br>Acopera <b id="acopOut">${acop == null ? '–' : acop}%</b> din consumul de aici` : ''}
     </div>
     <div class="pv-bar"><i id="pvBar" style="width:${Math.min(100, prod / CONSUM_UAT * 100)}%"></i></div>
   </div>`;
@@ -664,7 +688,7 @@ function wirePopup(p){
   const acopOut = document.getElementById('acopOut');
   const uatOut = document.getElementById('uatOut');
   const pvBar = document.getElementById('pvBar');
-  const cons = consumOf(p);
+  const cons = totalOf(p);
   if (inp){
     inp.addEventListener('input', () => {
       const n = Math.max(0, parseInt(inp.value, 10) || 0);
@@ -753,12 +777,14 @@ function updateLegend(){
   const kw   = pan * PUTERE_PANOU_W / 1000;
   const prod = kw * PRODUCTIE_SPECIFICA;
   // Consumul locurilor atasate punctelor unde s-a decis instalarea.
-  const consInst = PUNCTE.filter(p => instOf(p)).reduce((s,p) => s + consumOf(p), 0);
+  const consInst = PUNCTE.filter(p => instOf(p)).reduce((s,p) => s + totalOf(p), 0);
   document.getElementById('kPan').textContent  = nf(pan);
   document.getElementById('kKw').textContent   = nf(kw, 2) + ' kW';
   document.getElementById('kwBig').textContent = nf(kw, 2) + ' kW';
   document.getElementById('miniTxt').textContent = nf(kw, 2) + ' kW · ' + pan + ' pan.';
   document.getElementById('kProd').textContent = nf(prod) + ' kWh/an';
+  document.getElementById('kReal').textContent = nf(CONSUM_REAL) + ' kWh/an';
+  document.getElementById('kEst').textContent  = nf(ESTIMAT_TOTAL) + ' kWh/an';
   document.getElementById('kUat').textContent  = nf(CONSUM_UAT) + ' kWh/an';
   document.getElementById('kInst').textContent = nf(consInst) + ' kWh/an';
 
@@ -779,7 +805,8 @@ function exportJson(){
     id:p.id, nume:p.nume, tip:p.tip, poz:p.poz, lat:p.lat, lon:p.lon,
     instalez: instOf(p),
     lc:(p.lc||[]).map(x => x[0]),
-    consum_lc: consumOf(p),
+    consum_facturat: consumOf(p),
+    consum_estimat: estimatOf(p),
     panouri: stOf(p.id).panouri || 0,
     kw: kwOf(p),
     obs: stOf(p.id).obs || ''
@@ -880,7 +907,7 @@ function actualizeazaSubtitlu(){
     : (sheetOn ? 'legat la foaia din Drive' : 'foaia nu raspunde, lucrez local');
   document.getElementById('subTxt').textContent =
     PUNCTE.length + ' locatii · consum total UAT ' + nf(CONSUM_UAT) +
-    ' kWh · tinta ' + nf(PUTERE_TINTA_KW) + ' kW · ' + stare;
+    ' kWh (facturat + estimat) · tinta ' + nf(PUTERE_TINTA_KW) + ' kW · ' + stare;
 }
 
 // ── Start ───────────────────────────────────────────────────────────────────
