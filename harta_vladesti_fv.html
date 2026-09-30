@@ -495,8 +495,8 @@ const CONSUM_REAL = Object.keys(LC).reduce((s, c) => s + LC[c][1], 0);
 // Consumatori estimati care nu stau pe niciun marker. Detaliile si metoda de
 // calcul sunt in foaia "Consumuri estimate" din centralizator.
 const ESTIMAT_EXTERN = [
-  { nume:'Statie incarcare autobuze 300 kW DC, sat Priporu', kwh:176842,
-    nota:'Statie cu pantograf din proiectul PNRR de transport public al judetului. 8 sesiuni/zi x 12 min, 350 de zile — ipoteza.' }
+  { nume:'Statie incarcare autobuze 300 kW DC, sat Priporu', kwh:73684,
+    nota:'Statie cu pantograf din proiectul PNRR de transport public al judetului. Scenariul ales de Stefan: 4 sesiuni de oportunitate pe zi a cate 10 minute, 350 de zile pe an.' }
 ];
 const ESTIMAT_PUNCTE = PUNCTE.reduce((s, p) => s + ((p.estimat && p.estimat.kwh) || 0), 0);
 const ESTIMAT_TOTAL  = ESTIMAT_PUNCTE + ESTIMAT_EXTERN.reduce((s, x) => s + x.kwh, 0);
