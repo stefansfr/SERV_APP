@@ -370,8 +370,8 @@ const PUNCTE = [
 
   { id:'FOTB', nume:'Terenul de Fotbal', tip:'casa', poz:[14], inst:true, panouri:0,
     lat:45.115101, lon:24.316767,
-    estimat:{kwh:2761, ce:'Pompa de caldura 16 kW termici — 4 h/zi in oct-feb, la SCOP 3,5'},
-    nota:'Aici se suplimenteaza cu o pompa de caldura.',
+    estimat:{kwh:-4536, ce:'Pompa de caldura 16 kW termici, in locul centralei electrice — economie, nu consum in plus'},
+    nota:'Pompa inlocuieste centrala electrica, care reprezinta circa 80% din consumul stadionului (6.350 din 7.938 kWh/an). La SCOP 3,5 pompa acopera acelasi necesar termic cu 1.814 kWh/an, deci consumul scade cu 4.536 kWh/an. Ghidul cere ca pompa sa inlocuiasca minimum 50% din energia termica de referinta; aici acopera 100%.',
     lc:[['0051636644',true]] },
 
   { id:'FUND', nume:'IL PUBLIC PTA FUNDATURA', tip:'bec', poz:[24], inst:true, panouri:0,
@@ -612,11 +612,15 @@ function lcHtml(p){
   });
   const real = consumOf(p), est = estimatOf(p);
   // Consumatorul nou apare ca rand separat, ca sa nu se amestece cu facturatul.
-  if (est) rows += `<div class="lc-row" style="border-color:rgba(255,214,0,.45)">
-      <span class="lc-nm" style="color:${CULOARE_CABLU}">${esc(p.estimat.ce.split('—')[0].trim())}</span>
-      <span class="lc-cod" style="color:${CULOARE_CABLU}">estimat</span>
-      <span class="lc-kwh" style="color:${CULOARE_CABLU}">${nf(est)} kWh</span>
+  // Un consumator care inlocuieste ceva existent are estimatul negativ: e economie.
+  if (est){
+    const cul = est < 0 ? '#00e676' : CULOARE_CABLU;
+    rows += `<div class="lc-row" style="border-color:${cul}70">
+      <span class="lc-nm" style="color:${cul}">${esc(p.estimat.ce.split('—')[0].trim())}</span>
+      <span class="lc-cod" style="color:${cul}">${est < 0 ? 'economie' : 'estimat'}</span>
+      <span class="lc-kwh" style="color:${cul}">${nf(est)} kWh</span>
     </div>`;
+  }
   const nrRanduri = p.lc.length + (est ? 1 : 0);
   return `<div class="lc-list">
     <div class="lc-head">Consum anual — facturat${est ? ' si estimat' : ''}</div>
