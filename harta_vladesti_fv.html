@@ -243,7 +243,12 @@ const PRODUCTIE_SPECIFICA = 1250;   // kWh/kWp/an
 // dimensionata pe consumul total cu pierderi cu tot.
 const PUTERE_TINTA_KW = 160;
 
-const STORE = 'vladesti_pv_v1';
+// Cheia s-a schimbat in v2 odata cu rescrierea hartii pe amplasamentele finale.
+// Identificatorii vechi nu mai inseamna acelasi lucru — SCV, de pilda, era
+// Scoala Veche cu 30 de panouri si o nota despre Trundin, iar acum e
+// amplasamentul comasat. Datele vechi sunt pastrate in
+// "export_harta_localstorage_2026-09-30.json" din dosarul UAT Vladesti.
+const STORE = 'vladesti_pv_v2';
 
 // ── Legatura cu Sheet-ul din Drive ──────────────────────────────────────────
 // Pagina e statica si nu poate vorbi direct cu Google. Intre ele sta un Apps
