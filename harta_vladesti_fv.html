@@ -249,10 +249,11 @@ const PUTERE_PANOU_W = 500;      // W/panou — se schimba aici, o singura data
 // Se confirma cu PVGIS pe fiecare amplasament la faza de proiect.
 const PRODUCTIE_SPECIFICA = 1125;   // kWh/kWp/an
 
-// Tinta de putere instalata pentru toata comuna. A crescut de la 160 la 228 kW
-// odata cu consumatorii noi estimati; consumul mai mare se probeaza prin auditul
+// Tinta de putere instalata pentru toata comuna. A crescut de la 160 kW odata cu
+// consumatorii noi estimati; consumul mai mare se probeaza prin auditul
 // electroenergetic, asa cum cere ghidul la supradimensionarea autoconsumului.
-const PUTERE_TINTA_KW = 228;
+// Cele trei instalatii de la obiectivele mari s-au coborat de la 26 la 25 kW.
+const PUTERE_TINTA_KW = 225;
 
 // Cheia s-a schimbat in v2 odata cu rescrierea hartii pe amplasamentele finale.
 // Identificatorii vechi nu mai inseamna acelasi lucru — SCV, de pilda, era
@@ -327,13 +328,13 @@ const CULOARE_CABLU = '#ffd600';
 // lc: locurile de consum atasate. sigur=false inseamna potrivire PROPUSA de
 // mine din denumire sau din numerotarea auditului — se confirma pe teren.
 const PUNCTE = [
-  { id:'CAMIN', idx:'PV-01', nume:'Camin Cultural', tip:'casa', poz:[1, 15, 16], inst:true, panouri:52,
+  { id:'CAMIN', idx:'PV-01', nume:'Camin Cultural', tip:'casa', poz:[1, 15, 16], inst:true, panouri:50,
     lat:45.119636, lon:24.303646,
     cabluri:[{lat:45.119446, lon:24.304762, eticheta:'IL Public — pozitiile 15 si 16', m:90}],
     nota:'Aici se aduc si cele doua locuri de consum de iluminat public, pozitiile 15 si 16, aflate la capatul liniei.',
     lc:[['0050194109',true], ['0051587741',true], ['0051587735',true]] },
 
-  { id:'GRAD', idx:'PV-02', nume:'Gradinita', tip:'casa', poz:[4], inst:true, panouri:52,
+  { id:'GRAD', idx:'PV-02', nume:'Gradinita', tip:'casa', poz:[4], inst:true, panouri:50,
     lat:45.119368, lon:24.303465,
     estimat:{kwh:12500, ce:'Statie 22 kW + autobuz Ford, baterie 90 kWh — o incarcare completa la 2 zile lucratoare'},
     nota:'Se suplimenteaza cu statie de incarcare pentru autobuzul Ford de transport copii.',
@@ -355,7 +356,7 @@ const PUNCTE = [
     nota:'Se suplimenteaza cu statie de incarcare pentru Renault Kangoo.',
     lc:[['0050194107',true]] },
 
-  { id:'SCV', idx:'PV-03', nume:'Scoala Veche', tip:'casa', poz:[11, 12, 2, 22], inst:true, panouri:52,
+  { id:'SCV', idx:'PV-03', nume:'Scoala Veche', tip:'casa', poz:[11, 12, 2, 22], inst:true, panouri:50,
     lat:45.121882, lon:24.295929,
     cabluri:[{lat:45.121624, lon:24.296026, eticheta:'Iluminat public — Il Pb PTA Vladesti 2', m:30},
              {lat:45.122214, lon:24.296071, eticheta:'Centrul de Ingrijire', m:39}],
