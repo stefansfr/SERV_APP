@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Baile Govora — Amplasamente fotovoltaice</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1f232c; --text:#eef1f6; --muted:#8a92a3;
+    --border:#2a2f3a; --accent:#ffd600; --ok:#00e676; --warn:#ff9100; --bad:#ff5252;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);}
+  #map{position:absolute;top:0;left:0;right:0;bottom:0;}
+
+  #topbar{
+    position:absolute;top:0;left:0;right:0;z-index:1000;
+    background:linear-gradient(180deg,rgba(15,17,21,.92),rgba(15,17,21,0));
+    padding:14px 16px 30px;pointer-events:none;
+  }
+  #topbar h1{margin:0;font-size:17px;font-weight:700;letter-spacing:.2px;pointer-events:auto;}
+  #topbar h1 span{color:var(--accent);}
+  #topbar .sub{font-size:12px;color:var(--muted);margin-top:2px;pointer-events:auto;}
+
+  #legend{
+    position:absolute;right:12px;top:12px;z-index:1000;
+    background:var(--panel);border:1px solid var(--border);border-radius:14px;
+    padding:14px;width:262px;font-size:12.5px;box-shadow:0 8px 24px rgba(0,0,0,.4);
+    max-width:calc(100vw - 24px);
+    transition:width .25s ease, padding .25s ease;
+  }
+  #legend h3{margin:0;font-size:13px;color:var(--text);display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;gap:8px;}
+  #legend.expanded h3{margin-bottom:10px;}
+  #legend h3 b{color:var(--accent);font-size:16px;}
+  #legend h3 .chev{margin-left:auto;color:var(--muted);transition:transform .25s ease;flex:none;}
+  #legend.collapsed h3 .chev{transform:rotate(-90deg);}
+  #legend-body{overflow:hidden;max-height:1000px;transition:max-height .25s ease, opacity .2s ease;opacity:1;}
+  #legend.collapsed{padding:9px 14px;border-radius:22px;cursor:pointer;}
+  #legend.collapsed #legend-body{max-height:0;opacity:0;}
+  #legend-mini{display:none;align-items:center;gap:6px;font-weight:600;color:var(--text);white-space:nowrap;}
+  #legend.collapsed #legend-mini{display:flex;}
+  #legend.collapsed .mini-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);flex:none;}
+  .leg-row{display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer;}
+  .leg-row.off{opacity:.38;}
+  .leg-dot{width:13px;height:13px;border-radius:50%;flex:none;box-shadow:0 0 6px rgba(0,0,0,.5);}
+  .leg-label{color:var(--muted);flex:1;}
+  .leg-count{color:var(--text);font-weight:600;}
+  .cat-row{display:flex;align-items:center;gap:8px;margin:5px 0;}
+  .cat-row svg{flex:none;}
+  .cat-label{color:var(--muted);flex:1;}
+  .cat-count{color:var(--text);font-weight:600;}
+  .leg-sep{margin:10px 0;border-top:1px solid var(--border);}
+  .kpi{display:flex;justify-content:space-between;align-items:baseline;margin:5px 0;gap:8px;}
+  .kpi span{color:var(--muted);font-size:11.5px;}
+  .kpi b{font-size:13.5px;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .kpi b.hi{color:var(--accent);}
+  .kpi b.ok{color:var(--ok);}
+  .kpi b.bad{color:var(--bad);}
+  .progress-wrap{margin-top:8px;height:8px;border-radius:5px;background:#0b0d11;overflow:hidden;border:1px solid var(--border);}
+  .progress-bar{height:100%;background:linear-gradient(90deg,#ff9100,#ffd600,#00e676);width:0%;}
+  .progress-txt{margin-top:6px;font-size:11px;color:var(--muted);text-align:right;}
+  .leg-tools{display:flex;gap:6px;margin-top:10px;}
+  .leg-tools button{
+    flex:1;padding:6px;border-radius:8px;border:1px solid var(--border);
+    background:var(--panel2);color:var(--text);cursor:pointer;font-size:11.5px;font-weight:600;
+  }
+  .leg-tools button:hover{background:#2a3040;}
+
+  /* ── Panoul cu locurile de consum din fisierul furnizorului ────────────── */
+  #lcpanel{
+    position:absolute;left:12px;bottom:12px;z-index:1000;
+    background:var(--panel);border:1px solid var(--border);border-radius:14px;
+    padding:12px;width:330px;max-width:calc(100vw - 24px);font-size:12.5px;
+    box-shadow:0 8px 24px rgba(0,0,0,.45);
+  }
+  #lcpanel h3{margin:0;font-size:13px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;}
+  #lcpanel h3 .chev{margin-left:auto;color:var(--muted);transition:transform .25s ease;flex:none;}
+  #lcpanel.collapsed h3 .chev{transform:rotate(-90deg);}
+  #lcpanel-body{overflow:hidden;max-height:340px;transition:max-height .25s ease, opacity .2s;opacity:1;margin-top:9px;}
+  #lcpanel.collapsed #lcpanel-body{max-height:0;opacity:0;margin-top:0;}
+  #lcScroll{max-height:252px;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-right:3px;}
+  .lcp-row{
+    display:flex;align-items:baseline;gap:6px;padding:4px 7px;border-radius:7px;
+    background:#0b0d11;border:1px solid var(--border);margin-bottom:3px;font-size:11.5px;
+  }
+  .lcp-row.zero{opacity:.55;}
+  .lcp-row .lcp-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .lcp-row .lcp-kwh{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .lcp-row .lcp-idx{
+    font-size:9.5px;font-weight:800;padding:1px 5px;border-radius:5px;flex:none;
+    background:var(--accent);color:#1a1400;
+  }
+  .lcp-row .lcp-idx.none{background:transparent;color:var(--muted);border:1px solid var(--border);font-weight:600;}
+  .lcp-head{font-size:11px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:5px;gap:8px;}
+  .lcp-head b{color:var(--text);font-variant-numeric:tabular-nums;}
+
+  .locate-btn{
+    background:var(--panel);width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.4);border:1px solid var(--border);
+  }
+  .locate-btn:hover{background:var(--panel2);}
+  .locate-btn.loading svg{animation:spin 0.8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .geo-wrap{position:relative;width:18px;height:18px;}
+  .geo-dot{position:absolute;left:5px;top:5px;width:8px;height:8px;border-radius:50%;background:#00e5ff;border:2px solid #fff;box-shadow:0 0 6px #00e5ff;}
+  .geo-ring{position:absolute;left:0;top:0;width:18px;height:18px;border-radius:50%;background:rgba(0,229,255,.25);animation:pulse 1.8s ease-out infinite;}
+  @keyframes pulse{0%{transform:scale(.4);opacity:1;}100%{transform:scale(1.8);opacity:0;}}
+
+  /* Popup inalt: corpul se deruleaza, butonul de salvare sta fixat jos. */
+  .leaflet-popup-content{max-height:calc(100vh - 140px);display:flex;flex-direction:column;}
+  .popup-box{min-width:252px;max-width:280px;font-size:13px;display:flex;flex-direction:column;min-height:0;}
+  .popup-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0;flex:1 1 auto;padding-right:3px;}
+  .popup-foot{
+    flex:none;position:sticky;bottom:0;background:var(--panel);
+    padding-top:8px;margin-top:2px;border-top:1px solid var(--border);
+  }
+  .popup-box h4{margin:0 0 5px;font-size:15px;line-height:1.25;}
+  .popup-box .tags{margin-bottom:8px;display:flex;flex-wrap:wrap;gap:4px;}
+  .popup-box .tag{display:inline-block;font-size:10.5px;padding:2px 7px;border-radius:20px;background:#0b0d11;color:var(--muted);border:1px solid var(--border);}
+  .nota{font-size:11.5px;color:var(--muted);font-style:italic;margin-bottom:8px;line-height:1.35;}
+  .nota.sfr{color:#9ad8ff;font-style:normal;background:rgba(26,115,232,.1);border:1px solid rgba(26,115,232,.35);
+            border-radius:8px;padding:6px 8px;}
+  .idx-tag{
+    display:inline-block;background:var(--accent);color:#1a1400;font-weight:800;
+    font-size:11.5px;padding:1px 7px;border-radius:6px;vertical-align:2px;margin-right:2px;
+  }
+  .leaflet-tooltip.idx-lbl{
+    background:rgba(11,13,17,.82);border:1px solid var(--accent);color:var(--accent);
+    font-weight:800;font-size:11px;padding:1px 6px;border-radius:6px;box-shadow:none;
+  }
+  .leaflet-tooltip.idx-lbl:before{display:none;}
+  .inst-btn{
+    width:100%;padding:8px;border-radius:9px;border:1px solid var(--border);
+    background:var(--panel2);color:var(--muted);cursor:pointer;font-size:12.5px;
+    font-weight:700;font-family:inherit;margin-bottom:9px;transition:background .15s;
+  }
+  .inst-btn:hover{background:#2a3040;}
+  .inst-btn.on{background:#00e676;color:#04121a;border-color:transparent;}
+
+  .lc-list{margin-bottom:8px;}
+  .lc-head{font-size:11px;color:var(--muted);margin-bottom:3px;}
+  .lc-row{
+    display:flex;align-items:baseline;gap:6px;padding:5px 8px;border-radius:8px;
+    background:#0b0d11;border:1px solid var(--border);margin-bottom:3px;font-size:11.5px;
+  }
+  .lc-row .lc-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .lc-row .lc-cod{color:var(--muted);font-size:10px;font-variant-numeric:tabular-nums;}
+  .lc-row .lc-kwh{font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums;}
+  .lc-row .lc-x{color:var(--muted);cursor:pointer;font-weight:800;flex:none;padding:0 2px;}
+  .lc-row .lc-x:hover{color:var(--bad);}
+  .lc-none{font-size:11.5px;color:var(--warn);background:rgba(255,145,0,.08);border:1px solid rgba(255,145,0,.35);
+           border-radius:8px;padding:6px 8px;line-height:1.35;}
+  .lc-add{display:flex;gap:5px;margin-top:5px;}
+  .lc-add select{
+    flex:1;min-width:0;background:var(--panel2);color:var(--text);border:1px solid var(--border);
+    border-radius:8px;padding:5px 6px;font-size:11px;font-family:inherit;
+  }
+  .lc-add button{
+    flex:none;padding:5px 10px;border-radius:8px;border:1px solid var(--border);
+    background:var(--panel2);color:var(--text);font-weight:800;cursor:pointer;font-size:12px;
+  }
+  .lc-add button:hover{background:#2a3040;}
+
+  .pv-wrap{margin-top:9px;padding:9px;border-radius:10px;background:#0b0d11;border:1px solid var(--border);}
+  .pv-row{display:flex;align-items:center;gap:7px;}
+  .pv-row label{font-size:11px;color:var(--muted);flex:none;}
+  .pv-row input{
+    width:64px;flex:none;background:var(--panel2);color:var(--text);
+    border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:13px;
+    font-family:inherit;font-weight:700;text-align:center;
+  }
+  .pv-row .pv-mul{color:var(--muted);font-size:11.5px;flex:none;}
+  .pv-row .pv-kw{margin-left:auto;font-weight:800;font-size:15px;color:var(--accent);font-variant-numeric:tabular-nums;}
+  .pv-calc{margin-top:7px;font-size:11px;color:var(--muted);line-height:1.5;}
+  .pv-calc b{color:var(--text);font-variant-numeric:tabular-nums;}
+  .pv-bar{margin-top:6px;height:6px;border-radius:4px;background:var(--panel2);overflow:hidden;}
+  .pv-bar i{display:block;height:100%;background:linear-gradient(90deg,#ff9100,#ffd600,#00e676);}
+
+  .obs-wrap{margin-top:9px;}
+  .obs-wrap label{font-size:11px;color:var(--muted);display:block;margin-bottom:3px;}
+  .obs-wrap textarea{
+    width:100%;min-height:52px;resize:vertical;background:#0b0d11;color:var(--text);
+    border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:12px;font-family:inherit;
+  }
+  .obs-save{
+    margin-top:5px;width:100%;padding:7px;border-radius:8px;border:1px solid var(--border);
+    background:var(--panel2);color:var(--text);cursor:pointer;font-size:12px;font-weight:700;
+  }
+  .obs-save:hover{background:#2a3040;}
+  .popup-foot .obs-save{margin-top:0;}
+  .nav-btn{
+    display:block;margin-top:8px;padding:8px;border-radius:8px;text-align:center;
+    background:linear-gradient(90deg,#1a73e8,#00b0ff);color:#fff;font-weight:700;font-size:12.5px;
+    text-decoration:none;
+  }
+  .nav-btn:hover{filter:brightness(1.15);}
+  .coord{margin-top:6px;font-size:10.5px;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums;}
+
+  /* ── Leaflet pe tema intunecata ── */
+  .leaflet-popup-content-wrapper{
+    background:var(--panel)!important;color:var(--text)!important;
+    border:1px solid var(--border)!important;border-radius:14px!important;
+    box-shadow:0 10px 30px rgba(0,0,0,.55)!important;
+  }
+  .leaflet-popup-content{margin:12px 14px!important;}
+  .leaflet-popup-tip{background:var(--panel)!important;border:1px solid var(--border)!important;box-shadow:none!important;}
+  .leaflet-container a.leaflet-popup-close-button{color:var(--muted)!important;}
+  .leaflet-container a.leaflet-popup-close-button:hover{color:var(--text)!important;}
+  .leaflet-control-attribution{background:rgba(15,17,21,.7)!important;color:var(--muted)!important;}
+  .leaflet-control-attribution a{color:#7fd3ff!important;}
+  .leaflet-control-zoom a{background:var(--panel)!important;color:var(--text)!important;border-color:var(--border)!important;}
+  .leaflet-control-layers{background:var(--panel)!important;color:var(--text)!important;border:1px solid var(--border)!important;border-radius:10px!important;box-shadow:0 6px 18px rgba(0,0,0,.4)!important;}
+  .leaflet-control-layers-toggle{filter:invert(1) brightness(1.6);}
+  .leaflet-control-layers-expanded{padding:8px 12px!important;}
+  .leaflet-control-layers label{color:var(--text)!important;font-size:12.5px;}
+  .leaflet-top.leaflet-left{margin-top:44px;}
+
+  .toast{
+    position:absolute;left:50%;bottom:28px;transform:translateX(-50%);
+    background:#1f232c;border:1px solid var(--border);color:var(--text);
+    padding:10px 16px;border-radius:10px;font-size:13px;z-index:2000;box-shadow:0 8px 24px rgba(0,0,0,.5);
+    opacity:0;transition:opacity .25s;pointer-events:none;max-width:calc(100vw - 40px);text-align:center;
+  }
+  .toast.show{opacity:1;}
+
+  @media (max-width:640px){
+    #legend{ right:8px; top:8px; width:220px; }
+    #lcpanel{ left:8px; right:8px; width:auto; bottom:8px; }
+    #lcScroll{ max-height:180px; }
+    #topbar{ padding:12px 12px 26px; }
+    #topbar h1{ font-size:15px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="topbar">
+  <h1>Baile Govora <span>PV</span> — amplasamente fotovoltaice</h1>
+  <div class="sub" id="subTxt">8 puncte din teren · consum din fisierul furnizorului</div>
+</div>
+
+<div id="legend" class="expanded">
+  <h3 id="legendToggle">
+    <span>Putere instalata <b id="kwBig">–</b></span>
+    <span id="legend-mini"><span class="mini-dot"></span><span id="miniTxt">–</span></span>
+    <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+  </h3>
+  <div id="legend-body">
+    <div id="catRows"></div>
+    <div class="leg-sep"></div>
+    <div id="instRows"></div>
+    <div class="leg-sep"></div>
+    <div class="kpi"><span>Panouri amplasate</span><b id="kPan">0</b></div>
+    <div class="kpi"><span>Putere instalata</span><b class="hi" id="kKw">0,00 kW</b></div>
+    <div class="kpi"><span>Productie estimata</span><b id="kProd">0 kWh/an</b></div>
+    <div class="leg-sep" style="margin:9px 0"></div>
+    <div class="kpi"><span>Consum C_an, 12 luni</span><b id="kCan">0 kWh/an</b></div>
+    <div class="kpi"><span>R_ac = P_an / C_an</span><b id="kRac">0,00</b></div>
+    <div class="kpi"><span>Plafon AC.3, R_ac 1,10</span><b id="kPlafon">–</b></div>
+    <div class="progress-wrap"><div class="progress-bar" id="pbar"></div></div>
+    <div class="progress-txt" id="ptxt">–</div>
+    <div class="leg-sep" style="margin:9px 0"></div>
+    <div class="kpi"><span>Consum atribuit</span><b id="kAtrib">0 kWh/an</b></div>
+    <div class="progress-txt" id="ptxt2">–</div>
+    <div class="leg-tools">
+      <button id="btnExport" title="Copiaza panourile, atribuirile si comentariile ca JSON">📋 Export</button>
+      <button id="btnReset" title="Sterge modificarile locale si revino la datele din fisier">↺ Reset</button>
+    </div>
+  </div>
+</div>
+
+<div id="lcpanel" class="expanded">
+  <h3 id="lcToggle">
+    <span>Locuri de consum <b style="color:var(--accent)" id="lcCount">–</b></span>
+    <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+  </h3>
+  <div id="lcpanel-body">
+    <div class="lcp-head">
+      <span>iul.2025 – iun.2026</span>
+      <span>atribuit <b id="lcAtribN">0</b> / <b id="lcTotN">0</b></span>
+    </div>
+    <div id="lcScroll"></div>
+    <div class="lcp-head" style="margin:6px 0 0">
+      <span>Total</span><span><b id="lcTotKwh">0</b> kWh/an</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Config ──────────────────────────────────────────────────────────────────
+// Harta e statica: datele de mai jos sunt sursa de adevar, iar ce modifici in
+// harta (panouri, atribuiri, comentarii) se salveaza in browserul TAU.
+// Nimic nu pleaca spre un server. Inainte de orice rescriere: Export.
+const PUTERE_PANOU_W = 500;         // W/panou
+
+// Productia specifica, din experienta USS pe orientari variate: 100 kW dau
+// 110.000-115.000 kWh/an. Se confirma cu PVGIS pe fiecare amplasament.
+const PRODUCTIE_SPECIFICA = 1125;   // kWh/kWp/an
+
+// ── Consumul de referinta ───────────────────────────────────────────────────
+// Sursa: "ORAS BAILE GOVORA_28.09.2026_CONSUMURI.xlsb", foaia "centralizare
+// consum" (fisier de la furnizor, nu facturi PDF). Acolo sunt 14 luni,
+// 2025_07 ... 2026_08, dar iulie si august 2026 sunt INCOMPLETE (1.420 si
+// 2.690 kWh pe tot orasul, fata de 9.467 in iulie 2025: facturile nu erau
+// emise la data fisierului). De aceea fereastra de referinta e
+// iul.2025 - iun.2026, ultimele 12 luni complete.
+//
+// Al doilea lucru de stiut: in august-septembrie 2025 s-au schimbat codurile
+// locurilor de consum (50xxxxxx/51xxxxxx -> 52xxxxxx). Acelasi POD apare pe
+// doua coduri, iar seria continua numai daca le ADUNI. In tabelul de mai jos
+// cheia e PODul, iar codurile sunt pe ultima pozitie.
+const FEREASTRA = 'iul.2025 – iun.2026';
+
+// LC[POD] = [denumire, kWh in fereastra de 12 luni, kWh pe toate 14 lunile, coduri]
+const LC = {
+  '59401070000002613071394544': ['SEDIU PRIMARIE', 49464, 49886, '52032488'],
+  '59401070000200630771563351': ['IL PUBLIC PARC', 17489, 17977, '51651494+52057773'],
+  '59401070000002303071391407': ['IL.PUBLIC PTCZ CAZARE', 16255, 16967, '52015306'],
+  '59401070000186781771497881': ['IL PB PTA Gitejesti', 11877, 11877, '51587350'],
+  '59401070000186782471497882': ['IL.PUBL. PTA CURATURI', 8467, 8749, '51587351+52057772'],
+  '59401070000200629171563349': ['Fantana arteziana', 8282, 9039, '51651496+52057767'],
+  '59401070000002302371391385': ['IL.PUBLIC PTAB 608 GOVORA BAI', 8018, 8264, '52015305'],
+  '59401070000197406571547568': ['IL PUBLIC PTCZ BL 1 GOVORA', 7744, 7744, '51638776'],
+  '59401070000002305471391422': ['IL PB PT SANATORIU COPII', 7517, 7922, '50211081+52057771'],
+  '59401070000210189771595199': ['Centrala termica bloc', 5411, 5657, '51710521+52057775'],
+  '59401070000199256471558877': ['ILUMINAT PUBLIC PTA SAT VACANT', 3489, 3617, '51656482+52057774'],
+  '59401070000199648771560333': ['BAZA CHIMETO TERAPIE', 2120, 2120, '51642207'],
+  '59401070000188595871507930': ['CT+ILUMINAT SCARA BLOC ANL', 1186, 1237, '51595701+52057770'],
+  '59401070000202768571569717': ['MUZEU BALNEAR', 1007, 1026, '51660923+52057768'],
+  '59401070000203468371572714': ['FESTIVITATI FLORILE GOVOREI SCENA', 782, 782, '51676596+52057769'],
+  '59401070000220782771617849': ['REABILITARE ASEZAMANT CULTURAL', 755, 795, '51981621'],
+  '59401070000225758771645364': ['VESTIARE', 620, 864, '51805621+52057780'],
+  '59401070000203469071572719': ['FESTIVALUL FLORILE GOVOEI', 423, 445, '52097496+51675641'],
+  '59401070000002217071390543': ['SERA DE FLORI BAILE GOVORA', 200, 227, '50210571+52057764'],
+  '59401070000209970571594928': ['ILUMINAT SCARA B', 158, 166, '51710519+52057779'],
+  '59401070000206232771583203': ['ILUMINAT Bl 2 FAGULUI', 139, 143, '51685774+52057777'],
+  '59401070000002218771390551': ['IL PB PIATA NOUA alin VILA 20', 129, 133, '50210574+52057765'],
+  '59401070000209969971594927': ['ILUMINAT SCARA A', 95, 99, '51710517+52057778'],
+  '59401070000002855471396927': ['ADM. FINANTE PUBLICE B.GOVORA', 53, 53, '50213340+52057766'],
+  '59401070000206212971583200': ['ILUMINAT Bl 1 FAGULUI', 12, 13, '51685772+52057776'],
+  '59401070000002216371390535': ['POMPA CU JOC DE APA BAILE GOVO', 0, 0, '50210569+52057763'],
+  '59401070000002613070741059': ['SEDIU PRIMARIE', 0, 0, '50212194'],
+  '59401070000002304771391415': ['IL.PUB.PCZ PALACE', 0, 0, '50211079'],
+  '59401070000197369371547311': ['IL PUBLIC PTCZ VILA NUSA', 0, 0, '51638459'],
+  '59401070000197405871547567': ['IL PUBLIC PTCZ VILA 20', 0, 0, '51638775'],
+  '59401070000197407271547569': ['IL PUBLIC PTCZ BL 2 GOVORA', 0, 0, '51638777'],
+  '59401070000248072571765729': ['STATIE REICARCARE', 0, 0, '52355110'],
+  '59401070000247971271765360': ['STATIE REICARCARE T VLADIMIRESCU', 0, 0, '52355114'],
+  '59401070000246778871760824': ['STATIE INCARCARE ELECTRICA 2', 0, 0, '52357036'],
+  '59401070000247473171764202': ['STATIE INCARCARE ELECTRICA 1', 0, 0, '52357114'],
+  '59401070000247472471764201': ['STATIE INCARCARE ELECTRICA 3', 0, 0, '52357119']
+};
+
+// Consumul de referinta pentru AC.3: suma ferestrei de 12 luni.
+const CONSUM_REAL = Object.keys(LC).reduce((s,c) => s + LC[c][1], 0);
+
+// ── AC.3, conditia care limiteaza puterea ───────────────────────────────────
+// R_ac = P_an / C_an <= 1,10. Deci productia anuala maxima acceptata fara
+// excepție e 1,10 x C_an, iar puterea maxima e productia / productia
+// specifica. Ghidul accepta R_ac peste 1,10 numai pentru consumatori noi
+// (statii de incarcare, pompe de caldura), documentat in SF si probat prin
+// audit electroenergetic.
+const R_AC_MAX     = 1.10;
+const PLAFON_KWH   = CONSUM_REAL * R_AC_MAX;
+const PLAFON_KW    = PLAFON_KWH / PRODUCTIE_SPECIFICA;
+
+// Cheia de stocare. La orice restructurare a punctelor se schimba in _v2,
+// altfel identificatorii vechi aduc date vechi in markere noi.
+const STORE = 'govora_pv_v1';
+
+// ── Decizia de instalare — culoarea markerului ──────────────────────────────
+const INSTALARE = {
+  da: { label:'Instalez panouri', color:'#00e676' },
+  nu: { label:'Fara panouri',     color:'#9e9e9e' }
+};
+const TIPURI = {
+  casa:  { label:'Cladiri si obiective' },
+  teren: { label:'Parcari / teren' },
+  bec:   { label:'Iluminat public' }
+};
+const CULOARE_CABLU = '#ffd600';
+
+// ── Punctele din teren ──────────────────────────────────────────────────────
+// Coordonatele si textul din "notaSFR" sunt exact ce a transmis Stefan din
+// teren, 01.10.2026. Restul notelor sunt ale mele si sunt marcate ca atare.
+// Numerele 6, 15 si 41 sunt numerotarea lui Stefan: NU se regasesc ca pozitii
+// in fisierul furnizorului (36 de PODuri, iar 41 nu exista), deci legatura
+// dintre ele si locurile de consum e deschisa — vezi nota din README.
+const PUNCTE = [
+  { id:'PRIM', idx:'PV-01', nume:'Sediul Primariei', tip:'casa', pct:'41', inst:true, panouri:0,
+    lat:45.079151, lon:24.185022,
+    notaSFR:'sediul primăriei - 41',
+    nota:'Singura potrivire sigura dupa denumire: SEDIU PRIMARIE, 49.464 kWh/an, cel mai mare consumator al orasului (33% din tot consumul). Piata, la 88 m, e propusa de Stefan ca structura de montaj pentru acest punct.',
+    lc:[['59401070000002613071394544', true]] },
+
+  { id:'DISP', idx:'PV-02', nume:'Dispensar', tip:'casa', pct:'structura pt. 6', inst:true, panouri:0,
+    lat:45.080151, lon:24.182812,
+    notaSFR:'dispensar pentru pct 6',
+    nota:'Cladirea e propusa ca structura de montaj pentru punctul 6, aflat la 177 m. Atentie: dispensarul NU apare ca denumire in fisierul furnizorului — fisierul acopera un singur cod de client (90085415), deci e posibil sa existe locuri de consum pe alt titular.',
+    lc:[],
+    cabluri:[{lat:45.080238, lon:24.180567, eticheta:'punctul 6', m:177, marcaj:false}] },
+
+  { id:'PCT6', idx:'PV-03', nume:'Punctul 6 + statie de incarcare', tip:'teren', pct:'6', inst:true, panouri:0,
+    lat:45.080238, lon:24.180567,
+    notaSFR:'aici este 6 si stație încărcare',
+    nota:'In fisierul furnizorului sunt cinci statii de incarcare cu consum zero pe toate cele 14 luni (STATIE REICARCARE, STATIE REICARCARE T VLADIMIRESCU, STATIE INCARCARE ELECTRICA 1/2/3). Sunt consumatori noi, fara istoric: exact pârghia care permite depasirea R_ac de 1,10, daca se documenteaza in SF.',
+    lc:[] },
+
+  { id:'PCT15', idx:'PV-04', nume:'Punctul 15 + statie de incarcare', tip:'teren', pct:'15', inst:true, panouri:0,
+    lat:45.082172, lon:24.168282,
+    notaSFR:'15 si state incarcare (observ ca e tot parcarea aia)',
+    nota:'La 988 m de punctul 6, in capatul nord-vestic al orasului. Singurul amplasament rupt de grupul compact din centru, in afara punctului de aprindere din nord-est.',
+    lc:[] },
+
+  { id:'PIATA', idx:'PV-05', nume:'Piata', tip:'casa', pct:'structura pt. 41', inst:true, panouri:0,
+    lat:45.078560, lon:24.184273,
+    notaSFR:'piață - structura pentru 41',
+    nota:'Structura de montaj pentru punctul 41 (sediul primariei), la 88 m. Cel mai scurt traseu de cablu dintre toate ipotezele din teren.',
+    lc:[],
+    cabluri:[{lat:45.079151, lon:24.185022, eticheta:'punctul 41 — sediul primariei', m:88, marcaj:false}] },
+
+  { id:'LICEU', idx:'PV-06', nume:'Liceu', tip:'casa', pct:'pt1 ?', inst:true, panouri:0,
+    lat:45.075939, lon:24.189589,
+    notaSFR:'liceu si pt1 (poate pt e iluminat)',
+    nota:'Liceul nu apare ca denumire in fisierul furnizorului — nici scoala, nici liceu. De cerut de la primarie locul de consum al unitatii de invatamant (poate fi pe alt titular, cu CUI propriu). Daca „pt" e punct de aprindere, atunci PT1 e unul dintre cele 14 locuri de iluminat public.',
+    lc:[],
+    cabluri:[{lat:45.074108, lon:24.192169, eticheta:'PT1 — ipoteza de alimentare', m:287, marcaj:false}] },
+
+  { id:'PT1', idx:'PV-07', nume:'PT1', tip:'bec', pct:'pt1', inst:true, panouri:0,
+    lat:45.074108, lon:24.192169,
+    notaSFR:'pt1 (cred - poate vrea sa alimenteze pt 1 de la liceu)',
+    nota:'Ipoteza lui Stefan: alimentare de la liceu, 287 m in linie dreapta. De confirmat ce e PT1 — post de transformare sau punct de aprindere al iluminatului.',
+    lc:[] },
+
+  { id:'APR', idx:'PV-08', nume:'Punct de aprindere iluminat public', tip:'bec', inst:true, panouri:0,
+    lat:45.097534, lon:24.204102,
+    notaSFR:'punct aprindere iluminat public',
+    nota:'La 2,5 km nord-est de primarie. Iluminatul public insumeaza 76.000 kWh/an in fisier, pe 14 locuri de consum — a doua masa de consum dupa primarie, deci merita amplasamente proprii.',
+    lc:[] }
+];
+
+// ── Stare locala (panouri + atribuiri + comentarii) ─────────────────────────
+let STATE = {};
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORE);
+    STATE = raw ? JSON.parse(raw) : {};
+  }catch(e){ STATE = {}; console.warn('Nu s-a putut citi starea locala', e); }
+}
+function saveState(){
+  try{ localStorage.setItem(STORE, JSON.stringify(STATE)); return true; }
+  catch(e){ toast('⚠ Nu s-a putut salva local: ' + e.message, 4500); return false; }
+}
+function stOf(id){
+  if (!STATE[id]){
+    const p = PUNCTE.find(x => x.id === id);
+    STATE[id] = { panouri: (p && p.panouri) || 0, obs:'' };
+  }
+  return STATE[id];
+}
+
+// Decizia de instalare: ce ai comutat in harta bate valoarea din fisier.
+function instOf(p){
+  const s = STATE[p.id];
+  return (s && typeof s.inst === 'boolean') ? s.inst : !!p.inst;
+}
+function setInst(p, v){
+  stOf(p.id).inst = v;
+  if (saveState()){
+    markers[p.id].setIcon(makeIcon(p));
+    markers[p.id].setPopupContent(popupHtml(p));
+    wirePopup(p);
+    updateLegend(); updateLcPanel();
+    toast(v ? '✓ ' + p.nume + ': se instaleaza' : '○ ' + p.nume + ': fara panouri');
+  }
+}
+
+// ── Locurile de consum atasate ──────────────────────────────────────────────
+// Lista din fisier e punctul de plecare; ce atasezi sau scoti din harta se
+// pastreaza local si bate fisierul. Export aduce atribuirile inapoi in fisier.
+function lcOf(p){
+  const s = STATE[p.id];
+  if (s && Array.isArray(s.lc)) return s.lc.filter(c => LC[c]);
+  return (p.lc || []).map(x => x[0]);
+}
+function setLc(p, lista){
+  stOf(p.id).lc = lista;
+  if (saveState()){
+    // Reconstruim popupul dupa ce se termina clicul curent. Daca inlocuim
+    // continutul chiar in handler, nodul pe care s-a dat clic dispare, clicul
+    // ajunge la harta si Leaflet inchide popupul sub degetul tau.
+    setTimeout(() => { markers[p.id].setPopupContent(popupHtml(p)); wirePopup(p); }, 0);
+    updateLegend(); updateLcPanel();
+  }
+}
+// POD -> indicele punctului care l-a luat (primul care il revendica).
+function atribuiri(){
+  const m = {};
+  PUNCTE.forEach(p => lcOf(p).forEach(c => { if (!m[c]) m[c] = p; }));
+  return m;
+}
+
+// ── Utilitare ───────────────────────────────────────────────────────────────
+function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function nf(n, d){
+  return Number(n).toLocaleString('ro-RO', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
+}
+function kwOf(p){ return (stOf(p.id).panouri || 0) * PUTERE_PANOU_W / 1000; }
+function consumOf(p){ return lcOf(p).reduce((s,c) => s + (LC[c] ? LC[c][1] : 0), 0); }
+function prodOf(p){ return kwOf(p) * PRODUCTIE_SPECIFICA; }
+
+// ── Harta ───────────────────────────────────────────────────────────────────
+const map = L.map('map', {zoomControl:false}).setView([45.0810, 24.1859], 15);
+L.control.zoom({position:'topleft'}).addTo(map);
+
+const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution:'&copy; OpenStreetMap', maxZoom:19
+});
+const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  attribution:'&copy; Esri', maxZoom:19
+}).addTo(map);
+
+const tipGroups = {
+  casa:  L.layerGroup().addTo(map),
+  teren: L.layerGroup().addTo(map),
+  bec:   L.layerGroup().addTo(map)
+};
+const grupCabluri = L.layerGroup().addTo(map);
+L.control.layers(
+  {'Satelit': sat, 'Strada': osm},
+  {
+    'Cladiri si obiective': tipGroups.casa,
+    'Parcari / teren': tipGroups.teren,
+    'Iluminat public': tipGroups.bec,
+    'Cabluri propuse': grupCabluri
+  },
+  {position:'topleft'}
+).addTo(map);
+
+// ── Icoane ──────────────────────────────────────────────────────────────────
+function becSvg(color, w){
+  w = w || 30;
+  return `<svg width="${w}" height="${Math.round(w*36/30)}" viewBox="0 0 30 36" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="15" cy="33.2" rx="7" ry="2.3" fill="#000" opacity="0.35"/>
+    <path d="M15 2.5a9.5 9.5 0 0 1 9.5 9.5c0 3.8-2.2 6-3.8 7.9-1 1.2-1.6 2.3-1.7 3.5h-8c-.1-1.2-.7-2.3-1.7-3.5C7.7 18 5.5 15.8 5.5 12A9.5 9.5 0 0 1 15 2.5z" fill="${color}" stroke="#0b0d11" stroke-width="1.5"/>
+    <path d="M11.8 19.2l1.7-5.6 1.5 3.1 1.5-3.1 1.7 5.6" fill="none" stroke="#0b0d11" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+    <rect x="10.4" y="25" width="9.2" height="2.7" rx="1.2" fill="#0b0d11" opacity="0.62"/>
+    <rect x="11.3" y="28.4" width="7.4" height="2.5" rx="1.2" fill="#0b0d11" opacity="0.46"/>
+  </svg>`;
+}
+function casaSvg(color, w){
+  w = w || 30;
+  return `<svg width="${w}" height="${Math.round(w*34/30)}" viewBox="0 0 30 34" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="15" cy="31.4" rx="7" ry="2.3" fill="#000" opacity="0.35"/>
+    <path d="M15 3.2L27.6 13.4v13.2a1.8 1.8 0 0 1-1.8 1.8H4.2a1.8 1.8 0 0 1-1.8-1.8V13.4z" fill="${color}" stroke="#0b0d11" stroke-width="1.5" stroke-linejoin="round"/>
+    <rect x="12.2" y="19" width="5.6" height="9.4" rx="1" fill="#0b0d11" opacity="0.58"/>
+    <rect x="6.2" y="15.4" width="4.6" height="4.2" rx="1" fill="#0b0d11" opacity="0.4"/>
+    <rect x="19.2" y="15.4" width="4.6" height="4.2" rx="1" fill="#0b0d11" opacity="0.4"/>
+  </svg>`;
+}
+function terenSvg(color, w){
+  w = w || 34;
+  return `<svg width="${w}" height="${Math.round(w*32/34)}" viewBox="0 0 34 32" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="17" cy="29.4" rx="9" ry="2.3" fill="#000" opacity="0.35"/>
+    <path d="M17 6.5L31 15 17 23.5 3 15z" fill="${color}" fill-opacity="0.32" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-dasharray="3.4 2.6"/>
+    <path d="M17 23.5V28" stroke="#0b0d11" stroke-width="2.2" stroke-linecap="round"/>
+    <circle cx="17" cy="6.5" r="2.1" fill="${color}" stroke="#0b0d11" stroke-width="1.2"/>
+    <circle cx="31" cy="15" r="2.1" fill="${color}" stroke="#0b0d11" stroke-width="1.2"/>
+    <circle cx="17" cy="23.5" r="2.1" fill="${color}" stroke="#0b0d11" stroke-width="1.2"/>
+    <circle cx="3" cy="15" r="2.1" fill="${color}" stroke="#0b0d11" stroke-width="1.2"/>
+  </svg>`;
+}
+function svgFor(p, color, w){
+  if (p.tip === 'casa')  return casaSvg(color, w);
+  if (p.tip === 'teren') return terenSvg(color, w);
+  return becSvg(color, w);
+}
+function makeIcon(p){
+  const color = instOf(p) ? INSTALARE.da.color : INSTALARE.nu.color;
+  const sizes = { bec:[30,36], casa:[30,34], teren:[34,32] };
+  const [iw, ih] = sizes[p.tip] || sizes.bec;
+  return L.divIcon({
+    className:'', html: svgFor(p, color),
+    iconSize:[iw, ih], iconAnchor:[iw/2, ih-2], popupAnchor:[0, -(ih-4)]
+  });
+}
+
+// ── Popup ───────────────────────────────────────────────────────────────────
+function lcHtml(p){
+  const lista = lcOf(p);
+  const atrib = atribuiri();
+  let rows = '';
+  lista.forEach(cod => {
+    const r = LC[cod];
+    if (!r) return;
+    rows += `<div class="lc-row">
+      <span class="lc-nm">${esc(r[0])}</span>
+      <span class="lc-cod">${esc(r[3])}</span>
+      <span class="lc-kwh">${nf(r[1])} kWh</span>
+      <span class="lc-x" data-det="${esc(cod)}" title="scoate de aici">✕</span>
+    </div>`;
+  });
+  // Lista de ales: ce nu e luat de alt punct.
+  const libere = Object.keys(LC)
+    .filter(c => !atrib[c] || atrib[c].id === p.id)
+    .filter(c => lista.indexOf(c) < 0)
+    .sort((a,b) => LC[b][1] - LC[a][1]);
+  const opts = libere.map(c =>
+    `<option value="${esc(c)}">${esc(LC[c][0])} — ${nf(LC[c][1])} kWh</option>`).join('');
+  return `<div class="lc-list">
+    <div class="lc-head">Locuri de consum atasate — ${esc(FEREASTRA)}</div>
+    ${rows || `<div class="lc-none">Niciun loc de consum atasat. Alege mai jos ce alimenteaza acest punct.</div>`}
+    ${lista.length > 1 ? `<div class="lc-row"><span class="lc-nm"><b>Total</b></span><span class="lc-kwh">${nf(consumOf(p))} kWh</span></div>` : ''}
+    <div class="lc-add">
+      <select id="lcSel"><option value="">— ataseaza un loc de consum —</option>${opts}</select>
+      <button id="lcAdd">+</button>
+    </div>
+  </div>`;
+}
+function pvHtml(p){
+  const s = stOf(p.id);
+  const kw = kwOf(p), prod = prodOf(p), cons = consumOf(p);
+  const acop = cons > 0 ? Math.round(prod / cons * 100) : null;
+  return `<div class="pv-wrap">
+    <div class="pv-row">
+      <label>Panouri</label>
+      <input type="number" id="panIn" min="0" step="1" value="${s.panouri || 0}">
+      <span class="pv-mul">× ${PUTERE_PANOU_W} W =</span>
+      <span class="pv-kw" id="kwOut">${nf(kw, 2)} kW</span>
+    </div>
+    <div class="pv-calc">
+      Productie estimata: <b id="prodOut">${nf(prod)}</b> kWh/an
+      <span style="opacity:.7">(la ${nf(PRODUCTIE_SPECIFICA)} kWh/kWp, din experienta pe orientari variate)</span>
+      <br>Aduce <b id="uatOut">${nf(prod / CONSUM_REAL * 100, 1)}%</b> din consumul orasului
+      <span style="opacity:.7">(${nf(CONSUM_REAL)} kWh/an)</span>
+      ${cons > 0 ? `<br>Acopera <b id="acopOut">${acop == null ? '–' : acop}%</b> din consumul atasat aici` : ''}
+    </div>
+    <div class="pv-bar"><i id="pvBar" style="width:${Math.min(100, prod / CONSUM_REAL * 100)}%"></i></div>
+  </div>`;
+}
+function popupHtml(p){
+  const s = stOf(p.id);
+  const on = instOf(p);
+  return `<div class="popup-box">
+    <div class="popup-scroll">
+      <h4>${p.idx ? `<span class="idx-tag">${esc(p.idx)}</span> ` : ''}${esc(p.nume)}</h4>
+      <div class="tags">
+        <span class="tag">${esc((TIPURI[p.tip] || {}).label || p.tip)}</span>
+        ${p.pct ? `<span class="tag">nr. teren: ${esc(p.pct)}</span>` : ''}
+        ${(p.cabluri || []).map(c => `<span class="tag" style="color:${CULOARE_CABLU}">cablu ${c.m} m</span>`).join('')}
+      </div>
+      <button class="inst-btn ${on ? 'on' : ''}" id="instBtn">${on ? '✓ Instalez panouri aici' : '○ Fara panouri aici'}</button>
+      ${p.notaSFR ? `<div class="nota sfr">Din teren, SFR: „${esc(p.notaSFR)}"</div>` : ''}
+      ${p.nota ? `<div class="nota">${esc(p.nota)}</div>` : ''}
+      ${(p.cabluri || []).map(c => `<div class="nota" style="color:${CULOARE_CABLU};opacity:.9">↔ ${esc(c.eticheta)} — ${c.m} m in linie dreapta</div>`).join('')}
+      ${lcHtml(p)}
+      ${pvHtml(p)}
+      <div class="obs-wrap">
+        <label>Comentarii</label>
+        <textarea id="obsTxt" placeholder="ce ai vazut pe teren…">${esc(s.obs)}</textarea>
+      </div>
+      <a class="nav-btn" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}" target="_blank" rel="noopener">🗺 Navigheaza aici</a>
+      <div class="coord">${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}</div>
+    </div>
+    <div class="popup-foot">
+      <button class="obs-save" id="obsSave">💾 Salveaza panouri + comentariu</button>
+    </div>
+  </div>`;
+}
+
+// Recalculeaza live cifrele din popup, fara sa inchida tastatura pe telefon.
+function wirePopup(p){
+  const inp = document.getElementById('panIn');
+  const kwOut = document.getElementById('kwOut');
+  const prodOut = document.getElementById('prodOut');
+  const acopOut = document.getElementById('acopOut');
+  const uatOut = document.getElementById('uatOut');
+  const pvBar = document.getElementById('pvBar');
+  const cons = consumOf(p);
+  if (inp){
+    inp.addEventListener('input', () => {
+      const n = Math.max(0, parseInt(inp.value, 10) || 0);
+      const kw = n * PUTERE_PANOU_W / 1000, prod = kw * PRODUCTIE_SPECIFICA;
+      if (kwOut)   kwOut.textContent = nf(kw, 2) + ' kW';
+      if (prodOut) prodOut.textContent = nf(prod);
+      const u = prod / CONSUM_REAL * 100;
+      if (uatOut) uatOut.textContent = nf(u, 1) + '%';
+      if (pvBar)  pvBar.style.width = Math.min(100, u) + '%';
+      if (cons > 0 && acopOut) acopOut.textContent = Math.round(prod / cons * 100) + '%';
+    });
+  }
+  const ib = document.getElementById('instBtn');
+  if (ib) ib.addEventListener('click', () => setInst(p, !instOf(p)));
+
+  // Atasare / detasare locuri de consum
+  const add = document.getElementById('lcAdd'), sel = document.getElementById('lcSel');
+  if (add && sel) add.addEventListener('click', () => {
+    const c = sel.value;
+    if (!c) { toast('Alege un loc de consum din lista'); return; }
+    setLc(p, lcOf(p).concat([c]));
+    toast('✓ ' + LC[c][0] + ' → ' + p.idx);
+  });
+  document.querySelectorAll('[data-det]').forEach(el => {
+    el.addEventListener('click', () => {
+      const c = el.getAttribute('data-det');
+      setLc(p, lcOf(p).filter(x => x !== c));
+      toast('○ ' + LC[c][0] + ' scos de la ' + p.idx);
+    });
+  });
+
+  const btn = document.getElementById('obsSave');
+  if (btn) btn.addEventListener('click', () => {
+    const s = stOf(p.id);
+    s.panouri = Math.max(0, parseInt((inp && inp.value) || 0, 10) || 0);
+    const ta = document.getElementById('obsTxt');
+    s.obs = ta ? ta.value : s.obs;
+    if (saveState()){
+      toast('✓ ' + s.panouri + ' panouri (' + nf(kwOf(p), 2) + ' kW)');
+      markers[p.id].setIcon(makeIcon(p));
+      updateLegend();
+    }
+  });
+}
+
+// ── Markere ─────────────────────────────────────────────────────────────────
+const markers = {};
+function drawAll(){
+  PUNCTE.forEach(p => {
+    const m = L.marker([p.lat, p.lon], {icon: makeIcon(p)})
+      .addTo(tipGroups[p.tip] || tipGroups.bec)
+      .bindPopup(popupHtml(p), {closeButton:true, maxWidth:302});
+    m.on('popupopen', () => { m.setPopupContent(popupHtml(p)); wirePopup(p); });
+    if (p.idx) m.bindTooltip(p.idx, {permanent:true, direction:'right', offset:[10,-6], className:'idx-lbl'});
+    markers[p.id] = m;
+
+    // Cablurile propuse de Stefan intre structura de montaj si punctul alimentat.
+    (p.cabluri || []).forEach(c => {
+      L.polyline([[p.lat, p.lon], [c.lat, c.lon]], {
+        color: CULOARE_CABLU, weight: 3, opacity: .9, dashArray: '7 6'
+      }).bindTooltip(`${p.nume} → ${c.eticheta} · ${c.m} m`, {sticky:true}).addTo(grupCabluri);
+      if (c.marcaj !== false){
+        L.circleMarker([c.lat, c.lon], {
+          radius: 6, color: CULOARE_CABLU, weight: 2.5, fillColor: '#0b0d11', fillOpacity: .9
+        }).bindTooltip(`${esc(c.eticheta)}<br>${c.lat.toFixed(6)}, ${c.lon.toFixed(6)}`,
+                       {direction:'top'}).addTo(grupCabluri);
+      }
+    });
+  });
+}
+
+// ── Legenda ─────────────────────────────────────────────────────────────────
+const tipVisible = { casa:true, teren:true, bec:true };
+function updateLegend(){
+  let cat = '';
+  Object.keys(TIPURI).forEach(k => {
+    const n = PUNCTE.filter(p => p.tip === k).length;
+    cat += `<div class="cat-row leg-row ${tipVisible[k] ? '' : 'off'}" data-tip="${k}">
+      ${svgFor({tip:k}, '#8a92a3', 17)}
+      <span class="cat-label">${TIPURI[k].label}</span>
+      <span class="cat-count">${n}</span>
+    </div>`;
+  });
+  document.getElementById('catRows').innerHTML = cat;
+  document.querySelectorAll('[data-tip]').forEach(el => {
+    el.addEventListener('click', () => {
+      const k = el.getAttribute('data-tip');
+      tipVisible[k] = !tipVisible[k];
+      if (tipVisible[k]) map.addLayer(tipGroups[k]); else map.removeLayer(tipGroups[k]);
+      updateLegend();
+    });
+  });
+
+  const nDa = PUNCTE.filter(p => instOf(p)).length;
+  document.getElementById('instRows').innerHTML = [['da', nDa], ['nu', PUNCTE.length - nDa]]
+    .map(([k, n]) => `<div class="leg-row" style="cursor:default">
+      <div class="leg-dot" style="background:${INSTALARE[k].color}"></div>
+      <div class="leg-label">${INSTALARE[k].label}</div>
+      <div class="leg-count">${n}</div>
+    </div>`).join('');
+
+  const pan  = PUNCTE.reduce((s,p) => s + (stOf(p.id).panouri || 0), 0);
+  const kw   = pan * PUTERE_PANOU_W / 1000;
+  const prod = kw * PRODUCTIE_SPECIFICA;
+  const rac  = prod / CONSUM_REAL;
+  const atrib = PUNCTE.reduce((s,p) => s + consumOf(p), 0);
+
+  document.getElementById('kPan').textContent   = nf(pan);
+  document.getElementById('kKw').textContent    = nf(kw, 2) + ' kW';
+  document.getElementById('kwBig').textContent  = nf(kw, 2) + ' kW';
+  document.getElementById('miniTxt').textContent = nf(kw, 2) + ' kW · ' + pan + ' pan.';
+  document.getElementById('kProd').textContent  = nf(prod) + ' kWh/an';
+  document.getElementById('kCan').textContent   = nf(CONSUM_REAL) + ' kWh/an';
+
+  const bRac = document.getElementById('kRac');
+  bRac.textContent = nf(rac, 2);
+  bRac.className = pan === 0 ? '' : (rac <= R_AC_MAX ? 'ok' : 'bad');
+  document.getElementById('kPlafon').textContent =
+    nf(PLAFON_KW, 1) + ' kW · ' + nf(Math.floor(PLAFON_KW * 1000 / PUTERE_PANOU_W)) + ' pan.';
+
+  const pctP = kw / PLAFON_KW * 100;
+  document.getElementById('pbar').style.width = Math.min(100, pctP) + '%';
+  document.getElementById('ptxt').textContent = rac > R_AC_MAX
+    ? 'peste plafonul AC.3 cu ' + nf(kw - PLAFON_KW, 1) + ' kW — cere excepție documentată'
+    : nf(pctP, 1) + '% din plafon · mai sunt ' + nf(Math.max(0, Math.floor(PLAFON_KW*1000/PUTERE_PANOU_W) - pan)) + ' panouri';
+
+  document.getElementById('kAtrib').textContent = nf(atrib) + ' kWh/an';
+  document.getElementById('ptxt2').textContent =
+    nf(atrib / CONSUM_REAL * 100, 1) + '% din consumul orasului e legat de puncte';
+}
+
+// ── Panoul cu locurile de consum ────────────────────────────────────────────
+function updateLcPanel(){
+  const atrib = atribuiri();
+  const coduri = Object.keys(LC).sort((a,b) => LC[b][1] - LC[a][1]);
+  let html = '';
+  coduri.forEach(c => {
+    const r = LC[c], p = atrib[c];
+    html += `<div class="lcp-row ${r[1] === 0 ? 'zero' : ''}">
+      <span class="lcp-idx ${p ? '' : 'none'}">${p ? esc(p.idx) : '—'}</span>
+      <span class="lcp-nm" title="${esc(r[0])} · cod ${esc(r[3])}">${esc(r[0])}</span>
+      <span class="lcp-kwh">${nf(r[1])}</span>
+    </div>`;
+  });
+  document.getElementById('lcScroll').innerHTML = html;
+  document.getElementById('lcCount').textContent = coduri.length;
+  document.getElementById('lcAtribN').textContent = Object.keys(atrib).length;
+  document.getElementById('lcTotN').textContent = coduri.length;
+  document.getElementById('lcTotKwh').textContent = nf(CONSUM_REAL);
+}
+
+// ── Export / reset ──────────────────────────────────────────────────────────
+function exportJson(){
+  const out = PUNCTE.map(p => ({
+    id:p.id, idx:p.idx, nume:p.nume, tip:p.tip, nr_teren:p.pct || '',
+    lat:p.lat, lon:p.lon,
+    instalez: instOf(p),
+    lc: lcOf(p).map(c => ({pod:c, cod:LC[c][3], den:LC[c][0], kwh12:LC[c][1]})),
+    consum_atasat: consumOf(p),
+    panouri: stOf(p.id).panouri || 0,
+    kw: kwOf(p),
+    obs: stOf(p.id).obs || ''
+  }));
+  const txt = JSON.stringify({fereastra:FEREASTRA, c_an:CONSUM_REAL, puncte:out}, null, 1);
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt)
+      .then(() => toast('✓ Datele au fost copiate in clipboard'))
+      .catch(() => { console.log(txt); toast('Datele sunt in consola browserului'); });
+  } else {
+    console.log(txt);
+    toast('Datele sunt in consola browserului');
+  }
+}
+function resetLocal(){
+  if (!confirm('Sterg panourile, atribuirile si comentariile salvate in acest browser?')) return;
+  try{ localStorage.removeItem(STORE); }catch(e){}
+  STATE = {};
+  PUNCTE.forEach(p => markers[p.id] && markers[p.id].setIcon(makeIcon(p)));
+  map.closePopup();
+  updateLegend(); updateLcPanel();
+  toast('↺ Starea locala a fost stearsa');
+}
+
+// ── Collapse/expand panouri ─────────────────────────────────────────────────
+const legend = document.getElementById('legend');
+document.getElementById('legendToggle').addEventListener('click', e => {
+  e.stopPropagation();
+  legend.classList.toggle('collapsed');
+  legend.classList.toggle('expanded');
+});
+legend.addEventListener('click', () => {
+  if (legend.classList.contains('collapsed')){
+    legend.classList.remove('collapsed'); legend.classList.add('expanded');
+  }
+});
+const lcp = document.getElementById('lcpanel');
+document.getElementById('lcToggle').addEventListener('click', e => {
+  e.stopPropagation();
+  lcp.classList.toggle('collapsed');
+  lcp.classList.toggle('expanded');
+});
+
+// ── Toast ───────────────────────────────────────────────────────────────────
+let toastTimer = null;
+function toast(msg, dur){
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), dur || 2200);
+}
+
+// ── Geolocalizare ───────────────────────────────────────────────────────────
+let geoWatch = null, geoMarker = null, geoCircle = null;
+const GeoCtl = L.Control.extend({
+  options:{position:'topleft'},
+  onAdd: function(){
+    const d = L.DomUtil.create('div', 'locate-btn');
+    d.id = 'geoBtn';
+    d.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eef1f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>`;
+    L.DomEvent.disableClickPropagation(d);
+    d.onclick = toggleGeo;
+    return d;
+  }
+});
+map.addControl(new GeoCtl());
+function geoSuccess(pos){
+  const ll = [pos.coords.latitude, pos.coords.longitude];
+  const acc = pos.coords.accuracy || 0;
+  document.getElementById('geoBtn').classList.remove('loading');
+  if (!geoMarker){
+    geoMarker = L.marker(ll, {icon: L.divIcon({
+      className:'', html:'<div class="geo-wrap"><div class="geo-ring"></div><div class="geo-dot"></div></div>',
+      iconSize:[18,18], iconAnchor:[9,9]
+    })}).addTo(map);
+    geoCircle = L.circle(ll, {radius:acc, color:'#00e5ff', weight:1, fillOpacity:.08}).addTo(map);
+    map.setView(ll, Math.max(map.getZoom(), 16));
+  } else {
+    geoMarker.setLatLng(ll); geoCircle.setLatLng(ll).setRadius(acc);
+  }
+}
+function geoError(err){
+  document.getElementById('geoBtn').classList.remove('loading');
+  toast('⚠ Localizare indisponibila: ' + err.message, 4000);
+  stopGeo();
+}
+function stopGeo(){
+  if (geoWatch != null){ navigator.geolocation.clearWatch(geoWatch); geoWatch = null; }
+  if (geoMarker){ map.removeLayer(geoMarker); geoMarker = null; }
+  if (geoCircle){ map.removeLayer(geoCircle); geoCircle = null; }
+}
+function toggleGeo(){
+  if (geoWatch != null){ stopGeo(); toast('Localizare oprita'); return; }
+  if (!navigator.geolocation){ toast('⚠ Browserul nu suporta geolocalizare', 4000); return; }
+  document.getElementById('geoBtn').classList.add('loading');
+  geoWatch = navigator.geolocation.watchPosition(geoSuccess, geoError, {enableHighAccuracy:true, timeout:15000, maximumAge:5000});
+}
+
+// ── Subtitlu ────────────────────────────────────────────────────────────────
+function actualizeazaSubtitlu(){
+  document.getElementById('subTxt').textContent =
+    PUNCTE.length + ' puncte din teren · C_an ' + nf(CONSUM_REAL) + ' kWh (' + FEREASTRA +
+    ') · plafon AC.3 ' + nf(PLAFON_KW, 1) + ' kW · date doar pe calculatorul asta';
+}
+
+// ── Start ───────────────────────────────────────────────────────────────────
+loadState();
+drawAll();
+updateLegend();
+updateLcPanel();
+actualizeazaSubtitlu();
+document.getElementById('btnExport').addEventListener('click', e => { e.stopPropagation(); exportJson(); });
+document.getElementById('btnReset').addEventListener('click',  e => { e.stopPropagation(); resetLocal(); });
+map.fitBounds(L.latLngBounds(PUNCTE.map(p => [p.lat, p.lon])),
+  {paddingTopLeft:[30,70], paddingBottomRight:[70,70], maxZoom:16});
+</script>
+</body>
+</html>
