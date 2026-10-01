@@ -240,7 +240,7 @@
 
 <div id="topbar">
   <h1>Baile Govora <span>PV</span> — amplasamente fotovoltaice</h1>
-  <div class="sub" id="subTxt">8 puncte din teren · consum din fisierul furnizorului</div>
+  <div class="sub" id="subTxt">4 instalatii · consum din fisierul furnizorului</div>
 </div>
 
 <div id="legend" class="expanded">
@@ -299,9 +299,10 @@
 // Nimic nu pleaca spre un server. Inainte de orice rescriere: Export.
 const PUTERE_PANOU_W = 500;         // W/panou
 
-// Productia specifica, din experienta USS pe orientari variate: 100 kW dau
-// 110.000-115.000 kWh/an. Se confirma cu PVGIS pe fiecare amplasament.
-const PRODUCTIE_SPECIFICA = 1125;   // kWh/kWp/an
+// Productia specifica. La Vladesti s-a lucrat cu 1.125 kWh/kWp, dar aici
+// Stefan a cerut 1.050: orientarile amplasamentelor din Govora sunt proaste
+// (01.10.2026). Se confirma cu PVGIS pe fiecare amplasament.
+const PRODUCTIE_SPECIFICA = 1050;   // kWh/kWp/an
 
 // ── Consumul de referinta ───────────────────────────────────────────────────
 // Sursa: "ORAS BAILE GOVORA_28.09.2026_CONSUMURI.xlsb", foaia "centralizare
@@ -315,6 +316,10 @@ const PRODUCTIE_SPECIFICA = 1125;   // kWh/kWp/an
 // locurilor de consum (50xxxxxx/51xxxxxx -> 52xxxxxx). Acelasi POD apare pe
 // doua coduri, iar seria continua numai daca le ADUNI. In tabelul de mai jos
 // cheia e PODul, iar codurile sunt pe ultima pozitie.
+//
+// PROVIZORIU: Stefan aduce inca 2 luni de consum (02.10.2026), pentru ca
+// seria pe codurile noi nu acopera un an intreg. C_an creste, deci plafonul
+// AC.3 de mai jos se mareste si el — se reface calculul cand vin lunile.
 const FEREASTRA = 'iul.2025 – iun.2026';
 
 // LC[POD] = [denumire, kWh in fereastra de 12 luni, kWh pe toate 14 lunile, coduri]
@@ -372,7 +377,7 @@ const PLAFON_KW    = PLAFON_KWH / PRODUCTIE_SPECIFICA;
 
 // Cheia de stocare. La orice restructurare a punctelor se schimba in _v2,
 // altfel identificatorii vechi aduc date vechi in markere noi.
-const STORE = 'govora_pv_v1';
+const STORE = 'govora_pv_v2';
 
 // ── Decizia de instalare — culoarea markerului ──────────────────────────────
 const INSTALARE = {
@@ -381,68 +386,46 @@ const INSTALARE = {
 };
 const TIPURI = {
   casa:  { label:'Cladiri si obiective' },
-  teren: { label:'Parcari / teren' },
+  teren: { label:'Montaj pe teren' },
   bec:   { label:'Iluminat public' }
 };
 const CULOARE_CABLU = '#ffd600';
 
 // ── Punctele din teren ──────────────────────────────────────────────────────
-// Coordonatele si textul din "notaSFR" sunt exact ce a transmis Stefan din
-// teren, 01.10.2026. Restul notelor sunt ale mele si sunt marcate ca atare.
-// Numerele 6, 15 si 41 sunt numerotarea lui Stefan: NU se regasesc ca pozitii
-// in fisierul furnizorului (36 de PODuri, iar 41 nu exista), deci legatura
-// dintre ele si locurile de consum e deschisa — vezi nota din README.
+// Cele patru instalatii stabilite de Stefan, 01.10.2026. Coordonatele si
+// puterile sunt ale lui; notele din "notaSFR" sunt textul lui, verbatim.
+// Indicii s-au dat descrescator dupa putere, pe tipuri, cum cere procedura —
+// deci NU mai sunt indicii din prima versiune a hartii.
+//
+// Versiunea cu cele 8 puncte de recunoastere din teren a ramas in istoricul
+// git al acestui fisier (commit "Harta amplasamentelor fotovoltaice pentru
+// Oras Baile Govora") si in "Amplasamente fotovoltaice.md" din dosarul UAT.
 const PUNCTE = [
-  { id:'PRIM', idx:'PV-01', nume:'Sediul Primariei', tip:'casa', pct:'41', inst:true, panouri:0,
-    lat:45.079151, lon:24.185022,
-    notaSFR:'sediul primăriei - 41',
-    nota:'Singura potrivire sigura dupa denumire: SEDIU PRIMARIE, 49.464 kWh/an, cel mai mare consumator al orasului (33% din tot consumul). Piata, la 88 m, e propusa de Stefan ca structura de montaj pentru acest punct.',
-    lc:[['59401070000002613071394544', true]] },
-
-  { id:'DISP', idx:'PV-02', nume:'Dispensar', tip:'casa', pct:'structura pt. 6', inst:true, panouri:0,
-    lat:45.080151, lon:24.182812,
-    notaSFR:'dispensar pentru pct 6',
-    nota:'Cladirea e propusa ca structura de montaj pentru punctul 6, aflat la 177 m. Atentie: dispensarul NU apare ca denumire in fisierul furnizorului — fisierul acopera un singur cod de client (90085415), deci e posibil sa existe locuri de consum pe alt titular.',
-    lc:[],
-    cabluri:[{lat:45.080238, lon:24.180567, eticheta:'punctul 6', m:177, marcaj:false}] },
-
-  { id:'PCT6', idx:'PV-03', nume:'Punctul 6 + statie de incarcare', tip:'teren', pct:'6', inst:true, panouri:0,
-    lat:45.080238, lon:24.180567,
-    notaSFR:'aici este 6 si stație încărcare',
-    nota:'In fisierul furnizorului sunt cinci statii de incarcare cu consum zero pe toate cele 14 luni (STATIE REICARCARE, STATIE REICARCARE T VLADIMIRESCU, STATIE INCARCARE ELECTRICA 1/2/3). Sunt consumatori noi, fara istoric: exact pârghia care permite depasirea R_ac de 1,10, daca se documenteaza in SF.',
-    lc:[] },
-
-  { id:'PCT15', idx:'PV-04', nume:'Punctul 15 + statie de incarcare', tip:'teren', pct:'15', inst:true, panouri:0,
-    lat:45.082172, lon:24.168282,
-    notaSFR:'15 si state incarcare (observ ca e tot parcarea aia)',
-    nota:'La 988 m de punctul 6, in capatul nord-vestic al orasului. Singurul amplasament rupt de grupul compact din centru, in afara punctului de aprindere din nord-est.',
-    lc:[] },
-
-  { id:'PIATA', idx:'PV-05', nume:'Piata', tip:'casa', pct:'structura pt. 41', inst:true, panouri:0,
+  { id:'PIATA', idx:'PV-01', nume:'Piata', tip:'casa', pct:'41', inst:true, panouri:132,
     lat:45.078560, lon:24.184273,
-    notaSFR:'piață - structura pentru 41',
-    nota:'Structura de montaj pentru punctul 41 (sediul primariei), la 88 m. Cel mai scurt traseu de cablu dintre toate ipotezele din teren.',
-    lc:[],
-    cabluri:[{lat:45.079151, lon:24.185022, eticheta:'punctul 41 — sediul primariei', m:88, marcaj:false}] },
-
-  { id:'LICEU', idx:'PV-06', nume:'Liceu', tip:'casa', pct:'pt1 ?', inst:true, panouri:0,
-    lat:45.075939, lon:24.189589,
-    notaSFR:'liceu si pt1 (poate pt e iluminat)',
-    nota:'Liceul nu apare ca denumire in fisierul furnizorului — nici scoala, nici liceu. De cerut de la primarie locul de consum al unitatii de invatamant (poate fi pe alt titular, cu CUI propriu). Daca „pt" e punct de aprindere, atunci PT1 e unul dintre cele 14 locuri de iluminat public.',
-    lc:[],
-    cabluri:[{lat:45.074108, lon:24.192169, eticheta:'PT1 — ipoteza de alimentare', m:287, marcaj:false}] },
-
-  { id:'PT1', idx:'PV-07', nume:'PT1', tip:'bec', pct:'pt1', inst:true, panouri:0,
-    lat:45.074108, lon:24.192169,
-    notaSFR:'pt1 (cred - poate vrea sa alimenteze pt 1 de la liceu)',
-    nota:'Ipoteza lui Stefan: alimentare de la liceu, 287 m in linie dreapta. De confirmat ce e PT1 — post de transformare sau punct de aprindere al iluminatului.',
+    notaSFR:'aici - la piata instalam 66kW',
+    nota:'Cea mai mare instalatie din oras: 66 kW, 43% din puterea proiectata. Sediul primariei, cel mai mare consumator (49.464 kWh/an), e la 88 m.',
     lc:[] },
 
-  { id:'APR', idx:'PV-08', nume:'Punct de aprindere iluminat public', tip:'bec', inst:true, panouri:0,
-    lat:45.097534, lon:24.204102,
-    notaSFR:'punct aprindere iluminat public',
-    nota:'La 2,5 km nord-est de primarie. Iluminatul public insumeaza 76.000 kWh/an in fisier, pe 14 locuri de consum — a doua masa de consum dupa primarie, deci merita amplasamente proprii.',
-    lc:[] }
+  { id:'LICEU', idx:'PV-02', nume:'Liceu', tip:'casa', pct:'pt1', inst:true, panouri:108,
+    lat:45.075939, lon:24.189589,
+    notaSFR:'apoi la liceu instalam 54kW si lasi linie pana la 45.074108, 24.192169 unde este trafo si iluminat public',
+    nota:'54 kW pe liceu, cu linie trasa pana la trafo si iluminatul public de la 287 m. Liceul nu apare ca denumire in fisierul furnizorului — locul lui de consum e inca de cerut.',
+    lc:[],
+    cabluri:[{lat:45.074108, lon:24.192169, eticheta:'trafo + iluminat public', m:287}] },
+
+  { id:'DISP', idx:'PV-03', nume:'Dispensar', tip:'casa', pct:'6', inst:true, panouri:40,
+    lat:45.080238, lon:24.180567,
+    notaSFR:'pe dispensar instalam 20kW',
+    nota:'20 kW pe cladirea dispensarului. Coordonata e cea trimisa de Stefan pentru dispensar; in prima lista din teren, la ea statea „6 si statie incarcare", iar dispensarul era la 45.080151, 24.182812. S-a pastrat ultima indicatie.',
+    lc:[] },
+
+  { id:'GATEJ', idx:'PV-04', nume:'Scoala veche Gatejesti', tip:'teren', inst:true, panouri:30,
+    lat:45.098749, lon:24.205027,
+    notaSFR:'se vor instala panourile la scoala veche Gatejesti pe teren sa alimentam iluminatul public de la 45.097534, 24.204102. acolo vom instala 15kw',
+    nota:'15 kW montati pe teren, nu pe cladire. Alimenteaza punctul de aprindere al iluminatului public de la 153 m. Locul de consum atasat, IL PB PTA Gitejesti (11.877 kWh/an), e PROPUS dupa denumire — se confirma cu primaria.',
+    lc:[['59401070000186781771497881', false]],
+    cabluri:[{lat:45.097534, lon:24.204102, eticheta:'punct de aprindere iluminat public', m:153}] }
 ];
 
 // ── Stare locala (panouri + atribuiri + comentarii) ─────────────────────────
@@ -536,7 +519,7 @@ L.control.layers(
   {'Satelit': sat, 'Strada': osm},
   {
     'Cladiri si obiective': tipGroups.casa,
-    'Parcari / teren': tipGroups.teren,
+    'Montaj pe teren': tipGroups.teren,
     'Iluminat public': tipGroups.bec,
     'Cabluri propuse': grupCabluri
   },
@@ -636,7 +619,7 @@ function pvHtml(p){
     </div>
     <div class="pv-calc">
       Productie estimata: <b id="prodOut">${nf(prod)}</b> kWh/an
-      <span style="opacity:.7">(la ${nf(PRODUCTIE_SPECIFICA)} kWh/kWp, din experienta pe orientari variate)</span>
+      <span style="opacity:.7">(la ${nf(PRODUCTIE_SPECIFICA)} kWh/kWp — cifra lui Stefan pentru Govora, orientari slabe)</span>
       <br>Aduce <b id="uatOut">${nf(prod / CONSUM_REAL * 100, 1)}%</b> din consumul orasului
       <span style="opacity:.7">(${nf(CONSUM_REAL)} kWh/an)</span>
       ${cons > 0 ? `<br>Acopera <b id="acopOut">${acop == null ? '–' : acop}%</b> din consumul atasat aici` : ''}
@@ -723,7 +706,7 @@ function wirePopup(p){
     if (saveState()){
       toast('✓ ' + s.panouri + ' panouri (' + nf(kwOf(p), 2) + ' kW)');
       markers[p.id].setIcon(makeIcon(p));
-      updateLegend();
+      updateLegend(); actualizeazaSubtitlu();
     }
   });
 }
@@ -943,9 +926,11 @@ function toggleGeo(){
 
 // ── Subtitlu ────────────────────────────────────────────────────────────────
 function actualizeazaSubtitlu(){
+  const panouri = PUNCTE.reduce((s,p) => s + (stOf(p.id).panouri || 0), 0);
   document.getElementById('subTxt').textContent =
-    PUNCTE.length + ' puncte din teren · C_an ' + nf(CONSUM_REAL) + ' kWh (' + FEREASTRA +
-    ') · plafon AC.3 ' + nf(PLAFON_KW, 1) + ' kW · date doar pe calculatorul asta';
+    PUNCTE.length + ' instalatii · ' + nf(panouri * PUTERE_PANOU_W / 1000, 0) + ' kW · C_an ' +
+    nf(CONSUM_REAL) + ' kWh (' + FEREASTRA + ', provizoriu — mai vin 2 luni) · plafon AC.3 ' +
+    nf(PLAFON_KW, 1) + ' kW';
 }
 
 // ── Start ───────────────────────────────────────────────────────────────────
